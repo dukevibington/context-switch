@@ -1,0 +1,11 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema-capability.json",
+  "identifier": "default",
+  "description": "Default permissions for ContextSwitch dashboard and tray",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

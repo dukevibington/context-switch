@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default permissions for ContextSwitch dashboard and tray","local":true,"windows":["main"],"permissions":["core:default"]}}
