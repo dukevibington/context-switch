@@ -23,7 +23,7 @@ impl WindowSpyEngine for MacosWindowSpy {
         Err("macOS Window Spy Engine is only executable on macOS.".to_string())
     }
 
-    fn restore_workspace(&self, _workspace: &Workspace) -> Result<(), String> {
+    fn restore_workspace(&self, _workspace: &Workspace, _close_others: bool) -> Result<(), String> {
         Err("macOS Window Spy Engine is only executable on macOS.".to_string())
     }
 }
@@ -98,7 +98,7 @@ impl WindowSpyEngine for MacosWindowSpy {
         Ok(vec![])
     }
 
-    fn restore_workspace(&self, workspace: &Workspace) -> Result<(), String> {
+    fn restore_workspace(&self, workspace: &Workspace, _close_others: bool) -> Result<(), String> {
         println!("[macOS Engine] Restoring workspace: {}", workspace.name);
         
         for win in &workspace.windows {

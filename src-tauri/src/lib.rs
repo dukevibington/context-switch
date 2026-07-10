@@ -22,6 +22,7 @@ enum BackgroundJob {
     },
     Restore {
         id: String,
+        close_others: bool,
         responder: Sender<Result<(), String>>,
     },
     List {
@@ -99,13 +100,13 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
                 })();
                 let _ = responder.send(res);
             }
-            BackgroundJob::Restore { id, responder } => {
+            BackgroundJob::Restore { id, close_others, responder } => {
                 let res = (|| -> Result<(), String> {
                     let workspace = db
                         .get_workspace_by_id(&id)
                         .map_err(|e| e.to_string())?
                         .ok_or_else(|| "Workspace not found".to_string())?;
-                    engine.restore_workspace(&workspace)?;
+                    engine.restore_workspace(&workspace, close_others)?;
                     Ok(())
                 })();
                 let _ = responder.send(res);
@@ -270,12 +271,13 @@ pub mod commands {
     #[tauri::command]
     pub async fn restore_workspace_by_id(
         id: String,
+        close_others: bool,
         state: State<'_, AppState>,
     ) -> Result<(), String> {
         let (tx, rx) = channel();
         state
             .job_tx
-            .send(BackgroundJob::Restore { id, responder: tx })
+            .send(BackgroundJob::Restore { id, close_others, responder: tx })
             .map_err(|e| e.to_string())?;
         rx.recv().map_err(|e| e.to_string())?
     }

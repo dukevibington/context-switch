@@ -4,9 +4,9 @@ use windows_sys::Win32::System::Threading::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetClassNameW, GetWindow, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-    GetWindowThreadProcessId, IsWindowVisible, SetForegroundWindow, SetWindowPos, ShowWindow,
+    GetWindowThreadProcessId, IsWindowVisible, PostMessageW, SetForegroundWindow, SetWindowPos, ShowWindow,
     GW_OWNER, GWL_EXSTYLE, GWL_STYLE, SWP_SHOWWINDOW, SW_MAXIMIZE, SW_MINIMIZE,
-    SW_RESTORE, WS_EX_TOOLWINDOW, WS_MAXIMIZE, WS_MINIMIZE,
+    SW_RESTORE, WM_CLOSE, WS_EX_TOOLWINDOW, WS_MAXIMIZE, WS_MINIMIZE,
 };
 
 // Handle pointer width differences for GetWindowLongPtrW
@@ -45,7 +45,7 @@ impl WindowSpyEngine for WindowsWindowSpy {
         Ok(states)
     }
 
-    fn restore_workspace(&self, workspace: &Workspace) -> Result<(), String> {
+    fn restore_workspace(&self, workspace: &Workspace, close_others: bool) -> Result<(), String> {
         let active_windows = capture_active_windows_raw(false)?;
         let our_pid = std::process::id();
         let our_path = std::env::current_exe()
@@ -106,10 +106,46 @@ impl WindowSpyEngine for WindowsWindowSpy {
             }
         }
 
-        // 1. Minimize excess active windows
-        for act in minimizes {
-            unsafe {
-                ShowWindow(act.hwnd, SW_MINIMIZE);
+        // Collect unmatched active windows (apps not in the workspace at all)
+        let mut unmatched: Vec<&ActiveWindowInfo> = Vec::new();
+        for act in &active_windows {
+            if act.state.process_id == our_pid {
+                continue;
+            }
+            let base = get_basename(&act.state.app_name).to_lowercase();
+            if let Some(ref our_base) = our_basename {
+                if base == *our_base {
+                    continue;
+                }
+            }
+            if base.contains("context-switch") {
+                continue;
+            }
+            if !groups.contains_key(&base) {
+                unmatched.push(act);
+            }
+        }
+
+        // 1. Handle excess and unmatched active windows
+        if close_others {
+            // Close excess windows from matched groups
+            for act in &minimizes {
+                unsafe {
+                    PostMessageW(act.hwnd, WM_CLOSE, 0, 0);
+                }
+            }
+            // Close windows from apps not in the workspace at all
+            for act in &unmatched {
+                unsafe {
+                    PostMessageW(act.hwnd, WM_CLOSE, 0, 0);
+                }
+            }
+        } else {
+            // Just minimize excess windows
+            for act in &minimizes {
+                unsafe {
+                    ShowWindow(act.hwnd, SW_MINIMIZE);
+                }
             }
         }
 

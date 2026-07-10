@@ -243,16 +243,102 @@
     }
 
     .card-actions {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 0.4rem;
       width: 100%;
     }
     
     .card-actions .btn {
-      flex: 1;
       justify-content: center;
       padding: 0.5rem 0.25rem;
+      font-size: 0.75rem;
+    }
+
+    /* Custom Confirm Modal */
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(8, 9, 12, 0.85);
+      backdrop-filter: blur(6px);
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .confirm-overlay.active {
+      display: flex;
+    }
+
+    .confirm-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      width: 100%;
+      max-width: 340px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    .confirm-box h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.6rem;
+      color: var(--text-main);
+    }
+
+    .confirm-box p {
       font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 1rem;
+    }
+
+    .confirm-box .warning-text {
+      color: #f59e0b;
+      font-weight: 600;
+    }
+
+    .confirm-box .danger-text {
+      color: #ef4444;
+      font-weight: 600;
+    }
+
+    .confirm-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .confirm-actions .btn {
+      flex: 1;
+      justify-content: center;
+      padding: 0.6rem 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .btn-danger {
+      background-color: #ef4444;
+      color: white;
+      border: none;
+    }
+    .btn-danger:hover {
+      background-color: #dc2626;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-warning {
+      background-color: #f59e0b;
+      color: #0d0f12;
+      border: none;
+    }
+    .btn-warning:hover {
+      background-color: #d97706;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
     }
 
     /* Thumbnail Box Styling */
@@ -397,6 +483,18 @@
   </style>
 </head>
 <body>
+  <!-- Custom Confirm Modal -->
+  <div id="confirmOverlay" class="confirm-overlay">
+    <div class="confirm-box">
+      <h3 id="confirmTitle">Confirm</h3>
+      <p id="confirmMessage">Are you sure?</p>
+      <div class="confirm-actions">
+        <button id="confirmCancel" class="btn btn-secondary">Cancel</button>
+        <button id="confirmOk" class="btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <header data-tauri-drag-region>
     <div class="logo-container" data-tauri-drag-region>
       <div class="logo-icon" data-tauri-drag-region>C</div>
@@ -556,15 +654,22 @@
           const actions = document.createElement('div');
           actions.className = 'card-actions';
 
+          // Row 1: Restore | Restore + Close
           const restoreBtn = document.createElement('button');
           restoreBtn.className = 'btn btn-secondary';
           restoreBtn.textContent = 'Restore';
-          restoreBtn.onclick = () => restoreWorkspace(ws.id, ws.name);
+          restoreBtn.onclick = () => restoreWorkspace(ws.id, ws.name, false);
 
+          const restoreCloseBtn = document.createElement('button');
+          restoreCloseBtn.className = 'btn btn-secondary';
+          restoreCloseBtn.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+          restoreCloseBtn.style.color = '#f59e0b';
+          restoreCloseBtn.textContent = '⚠ Restore + Close';
+          restoreCloseBtn.onclick = () => restoreWorkspace(ws.id, ws.name, true);
+
+          // Row 2: Update | Delete
           const updateBtn = document.createElement('button');
           updateBtn.className = 'btn btn-secondary';
-          updateBtn.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-          updateBtn.style.color = '#f59e0b';
           updateBtn.textContent = 'Update';
           updateBtn.onclick = () => updateWorkspace(ws.id, ws.name);
 
@@ -576,6 +681,7 @@
           deleteBtn.onclick = () => deleteWorkspace(ws.id, ws.name);
 
           actions.appendChild(restoreBtn);
+          actions.appendChild(restoreCloseBtn);
           actions.appendChild(updateBtn);
           actions.appendChild(deleteBtn);
           card.appendChild(info);
@@ -587,50 +693,108 @@
       }
     }
 
+    // Custom confirm modal helper
+    function showConfirm({ title, message, okText = 'Confirm', okClass = '', onConfirm }) {
+      const overlay = document.getElementById('confirmOverlay');
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').innerHTML = message;
+      const okBtn = document.getElementById('confirmOk');
+      okBtn.textContent = okText;
+      okBtn.className = 'btn ' + (okClass || '');
+      overlay.classList.add('active');
+
+      const cancelBtn = document.getElementById('confirmCancel');
+
+      function cleanup() {
+        overlay.classList.remove('active');
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+      }
+
+      okBtn.onclick = () => { cleanup(); onConfirm(); };
+      cancelBtn.onclick = () => { cleanup(); };
+    }
+
     async function updateWorkspace(id, name) {
-      if (!confirm(`Are you sure you want to update workspace "${name}" with your current screen layout?`)) return;
-      const captureScreenshot = document.getElementById('screenshotToggle').checked;
-      log(`Updating workspace "${name}" layout...`, 'info');
-      if (!invoke) {
-        log(`Simulation: Updated ${id} layout.`, 'success');
-        return;
-      }
-      try {
-        const ws = await invoke('update_workspace_by_id', { id, captureScreenshot });
-        log(`Workspace "${name}" layout updated successfully. Now has ${ws.windows.length} window(s).`, 'success');
-        refreshWorkspaces();
-      } catch (e) {
-        log(`Failed to update: ${e}`, 'error');
-      }
+      showConfirm({
+        title: 'Update Workspace',
+        message: `Update <strong>"${name}"</strong> with your current screen layout?`,
+        okText: 'Update',
+        okClass: 'btn-warning',
+        onConfirm: async () => {
+          const captureScreenshot = document.getElementById('screenshotToggle').checked;
+          log(`Updating workspace "${name}" layout...`, 'info');
+          if (!invoke) {
+            log(`Simulation: Updated ${id} layout.`, 'success');
+            return;
+          }
+          try {
+            const ws = await invoke('update_workspace_by_id', { id, captureScreenshot });
+            log(`Workspace "${name}" layout updated successfully. Now has ${ws.windows.length} window(s).`, 'success');
+            refreshWorkspaces();
+          } catch (e) {
+            log(`Failed to update: ${e}`, 'error');
+          }
+        }
+      });
     }
 
     async function deleteWorkspace(id, name) {
-      if (!confirm(`Are you sure you want to delete workspace "${name}"?`)) return;
-      log(`Deleting workspace "${name}"...`, 'info');
-      if (!invoke) {
-        log(`Simulation: Deleted ${id}.`, 'success');
-        return;
-      }
-      try {
-        await invoke('delete_workspace_by_id', { id });
-        log(`Workspace "${name}" deleted.`, 'success');
-        refreshWorkspaces();
-      } catch (e) {
-        log(`Failed to delete: ${e}`, 'error');
-      }
+      showConfirm({
+        title: 'Delete Workspace',
+        message: `Are you sure you want to permanently delete <strong>"${name}"</strong>? This cannot be undone.`,
+        okText: 'Delete',
+        okClass: 'btn-danger',
+        onConfirm: async () => {
+          log(`Deleting workspace "${name}"...`, 'info');
+          if (!invoke) {
+            log(`Simulation: Deleted ${id}.`, 'success');
+            return;
+          }
+          try {
+            await invoke('delete_workspace_by_id', { id });
+            log(`Workspace "${name}" deleted.`, 'success');
+            refreshWorkspaces();
+          } catch (e) {
+            log(`Failed to delete: ${e}`, 'error');
+          }
+        }
+      });
     }
 
-    async function restoreWorkspace(id, name) {
-      log(`Restoring layout for workspace "${name}"...`, 'info');
-      if (!invoke) {
-        log(`Simulation: Sizing API trigger for ${id} run.`, 'success');
-        return;
-      }
-      try {
-        await invoke('restore_workspace_by_id', { id });
-        log(`Workspace "${name}" layout restored successfully.`, 'success');
-      } catch (e) {
-        log(`Failed to restore: ${e}`, 'error');
+    async function restoreWorkspace(id, name, closeOthers) {
+      if (closeOthers) {
+        showConfirm({
+          title: '⚠️ Restore + Close Other Apps',
+          message: `This will restore <strong>"${name}"</strong> and <span class="danger-text">close all other open applications</span> that are not part of this workspace.<br><br>Any unsaved work in other apps may be lost.`,
+          okText: 'Restore + Close Others',
+          okClass: 'btn-danger',
+          onConfirm: async () => {
+            log(`Restoring "${name}" and closing other apps...`, 'info');
+            if (!invoke) {
+              log(`Simulation: Restored + closed others for ${id}.`, 'success');
+              return;
+            }
+            try {
+              await invoke('restore_workspace_by_id', { id, closeOthers: true });
+              log(`Workspace "${name}" restored. Other apps have been closed.`, 'success');
+            } catch (e) {
+              log(`Failed to restore: ${e}`, 'error');
+            }
+          }
+        });
+      } else {
+        log(`Restoring layout for workspace "${name}"...`, 'info');
+        if (!invoke) {
+          log(`Simulation: Sizing API trigger for ${id} run.`, 'success');
+          return;
+        }
+        try {
+          await invoke('restore_workspace_by_id', { id, closeOthers: false });
+          log(`Workspace "${name}" layout restored successfully.`, 'success');
+        } catch (e) {
+          log(`Failed to restore: ${e}`, 'error');
+        }
       }
     }
 

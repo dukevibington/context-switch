@@ -27,7 +27,7 @@ pub trait WindowSpyEngine {
     fn capture_windows(&self) -> Result<Vec<WindowState>, String>;
     
     /// Restores coordinates and layout of the saved workspace windows
-    fn restore_workspace(&self, workspace: &Workspace) -> Result<(), String>;
+    fn restore_workspace(&self, workspace: &Workspace, close_others: bool) -> Result<(), String>;
 }
 
 #[cfg(target_os = "windows")]
@@ -53,7 +53,7 @@ pub mod dummy {
             Ok(vec![])
         }
 
-        fn restore_workspace(&self, _workspace: &Workspace) -> Result<(), String> {
+        fn restore_workspace(&self, _workspace: &Workspace, _close_others: bool) -> Result<(), String> {
             Ok(())
         }
     }
