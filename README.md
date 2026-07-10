@@ -33,10 +33,7 @@ ContextSwitch runs quietly in the background as a system utility daemon, allowin
 ### Prerequisites
 *   **Node.js**: LTS version (v18+)
 *   **Rust**: Stable toolchain (`rustup`)
-*   **OS Build Tools**:
-    *   **Windows**: C++ build tools (via Visual Studio Installer)
-    *   **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-    *   **Linux**: webkit2gtk and build dependencies (`libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
+*   **OS Build Tools**: Windows C++ build tools (via Visual Studio Installer)
 
 ### Installation & Run
 1. Clone the repository and install dependencies:
@@ -67,8 +64,8 @@ This repository includes a GitHub Action workflow to automatically compile the a
 3. Commit your changes and open a **Pull Request** targeting the `main` branch.
 4. Once the PR is reviewed and **merged into `main`**, the release workflow triggers automatically:
    - It reads the version directly from `package.json` (e.g. `v1.0.1`).
-   - It boots Windows, macOS, and Linux runners to compile release bundles.
-   - It uploads the executables (such as `.exe` and `.msi` installers for Windows) to a new **Release Draft** on GitHub, ready for you to review and publish.
+   - It boots a Windows runner to compile the release bundles.
+   - It uploads the executables (such as `.exe` and `.msi` installers) to a new **Release Draft** on GitHub, ready for you to review and publish.
 
 ---
 

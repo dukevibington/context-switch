@@ -504,6 +504,58 @@ pub mod commands {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn add_to_path() {
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let exe_dir_str = exe_dir.to_string_lossy().to_string();
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            if let Ok((env_key, _)) = hkcu.create_subkey("Environment") {
+                let current_path: String = env_key.get_value("Path").unwrap_or_default();
+                
+                // Avoid double insertion
+                let has_path = current_path.split(';').any(|p| {
+                    let cleaned_p = p.trim().trim_end_matches('\\');
+                    let cleaned_exe = exe_dir_str.trim().trim_end_matches('\\');
+                    cleaned_p.eq_ignore_ascii_case(cleaned_exe)
+                });
+
+                if !has_path {
+                    let new_path = if current_path.is_empty() {
+                        exe_dir_str.clone()
+                    } else {
+                        format!("{};{}", current_path, exe_dir_str)
+                    };
+                    if env_key.set_value("Path", &new_path).is_ok() {
+                        println!("[Daemon] Added ContextSwitch to user PATH environment variable: {}", exe_dir_str);
+                        
+                        // Broadcast environment update to standard explorer shell
+                        unsafe {
+                            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                                SendMessageTimeoutW, HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG
+                            };
+                            let mut result = 0;
+                            let param = "Environment\0".encode_utf16().collect::<Vec<u16>>();
+                            let _ = SendMessageTimeoutW(
+                                HWND_BROADCAST,
+                                WM_SETTINGCHANGE,
+                                0,
+                                param.as_ptr() as _,
+                                SMTO_ABORTIFHUNG,
+                                5000,
+                                &mut result
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let (job_tx, job_rx) = channel();
@@ -587,6 +639,65 @@ pub fn run() {
                     eprintln!("Failed to register startup hotkey '{}': {:?}", hotkey_str, e);
                 }
             }
+
+            #[cfg(target_os = "windows")]
+            {
+                add_to_path();
+            }
+
+            // Create system tray icon with Open and Quit items
+            use tauri::menu::{MenuBuilder, MenuItem};
+            use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
+
+            let open_i = MenuItem::with_id(app, "open", "Open ContextSwitch", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = MenuBuilder::new(app)
+                .item(&open_i)
+                .separator()
+                .item(&quit_i)
+                .build()?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| {
+                    match event.id.0.as_str() {
+                        "open" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } => {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                let is_visible = window.is_visible().unwrap_or(false);
+                                if is_visible {
+                                    let _ = window.hide();
+                                } else {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
+
             Ok(())
         })
         .run(tauri::generate_context!())

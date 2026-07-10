@@ -1131,9 +1131,9 @@
     if (document.getElementById('closeBtn')) {
       document.getElementById('closeBtn').onclick = () => {
         if (window.__TAURI__) {
-          window.__TAURI__.window.getCurrentWindow().close();
+          window.__TAURI__.window.getCurrentWindow().hide();
         } else {
-          log("Simulation: close() triggered.", "success");
+          log("Simulation: hide() triggered.", "success");
         }
       };
     }
