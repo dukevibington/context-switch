@@ -37,6 +37,11 @@ impl DatabaseManager {
             [],
         )?;
 
+        let _ = self.conn.execute(
+            "ALTER TABLE workspaces ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;",
+            [],
+        );
+
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS window_states (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +60,27 @@ impl DatabaseManager {
             [],
         )?;
 
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );",
+            [],
+        )?;
+
+        // Seed default hotkey if not present
+        let hotkey_check: Result<i32> = self.conn.query_row(
+            "SELECT 1 FROM settings WHERE key = 'hotkey';",
+            [],
+            |_| Ok(1),
+        );
+        if hotkey_check.is_err() {
+            let _ = self.conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('hotkey', 'alt+space');",
+                [],
+            );
+        }
+
         Ok(())
     }
 
@@ -64,8 +90,13 @@ impl DatabaseManager {
 
         // Save workspace metadata (UPSERT)
         tx.execute(
-            "INSERT OR REPLACE INTO workspaces (id, name, created_at) VALUES (?1, ?2, ?3);",
-            params![workspace.id, workspace.name, workspace.created_at],
+            "INSERT OR REPLACE INTO workspaces (id, name, created_at, is_favorite) VALUES (?1, ?2, ?3, ?4);",
+            params![
+                workspace.id,
+                workspace.name,
+                workspace.created_at,
+                if workspace.is_favorite { 1 } else { 0 }
+            ],
         )?;
 
         // Clear existing windows to overwrite state cleanly
@@ -103,13 +134,13 @@ impl DatabaseManager {
 
     /// Retrieves a Workspace by its unique UUID ID.
     pub fn get_workspace_by_id(&self, id: &str) -> Result<Option<Workspace>> {
-        let mut stmt = self.conn.prepare("SELECT name, created_at FROM workspaces WHERE id = ?1;")?;
+        let mut stmt = self.conn.prepare("SELECT name, created_at, is_favorite FROM workspaces WHERE id = ?1;")?;
         
         let ws_opt = stmt.query_row(params![id], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i32>(2)?))
         });
 
-        let (name, created_at) = match ws_opt {
+        let (name, created_at, is_fav_val) = match ws_opt {
             Ok(data) => data,
             Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
             Err(e) => return Err(e),
@@ -145,6 +176,7 @@ impl DatabaseManager {
             id: id.to_string(),
             name,
             created_at,
+            is_favorite: is_fav_val != 0,
             windows,
         }))
     }
@@ -168,6 +200,40 @@ impl DatabaseManager {
     /// Deletes a Workspace and all its associated WindowStates from the database.
     pub fn delete_workspace_by_id(&mut self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM workspaces WHERE id = ?1;", [id])?;
+        Ok(())
+    }
+
+    /// Toggles the favorite status of a Workspace and returns the new state.
+    pub fn toggle_workspace_favorite(&mut self, id: &str) -> Result<bool> {
+        let current: i32 = self.conn.query_row(
+            "SELECT is_favorite FROM workspaces WHERE id = ?1;",
+            [id],
+            |row| row.get(0),
+        )?;
+        let new_state = if current == 0 { 1 } else { 0 };
+        self.conn.execute(
+            "UPDATE workspaces SET is_favorite = ?1 WHERE id = ?2;",
+            params![new_state, id],
+        )?;
+        Ok(new_state != 0)
+    }
+
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let mut stmt = self.conn.prepare("SELECT value FROM settings WHERE key = ?1;")?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            let val: String = row.get(0)?;
+            Ok(Some(val))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2);",
+            params![key, value],
+        )?;
         Ok(())
     }
 }

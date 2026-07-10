@@ -18,9 +18,9 @@
     "windows": [
       {
         "title": "ContextSwitch Overlay",
-        "width": 380,
-        "height": 600,
-        "resizable": false,
+        "width": 450,
+        "height": 1000,
+        "resizable": true,
         "fullscreen": false,
         "decorations": false,
         "alwaysOnTop": true,

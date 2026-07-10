@@ -19,6 +19,7 @@ pub struct Workspace {
     pub id: String, // UUID v4
     pub name: String,
     pub created_at: i64,
+    pub is_favorite: bool,
     pub windows: Vec<WindowState>,
 }
 

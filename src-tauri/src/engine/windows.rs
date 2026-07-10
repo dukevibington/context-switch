@@ -46,13 +46,14 @@ impl WindowSpyEngine for WindowsWindowSpy {
     }
 
     fn restore_workspace(&self, workspace: &Workspace, close_others: bool) -> Result<(), String> {
-        let active_windows = capture_active_windows_raw(false)?;
+        let mut active_windows = capture_active_windows_raw(false)?;
         let our_pid = std::process::id();
         let our_path = std::env::current_exe()
             .ok()
             .map(|p| p.to_string_lossy().to_string().to_lowercase());
         let our_basename = our_path.as_ref().map(|p| get_basename(p).to_lowercase());
 
+        // Step 1: Detect which saved apps are missing from the current active windows, and launch them.
         let mut groups: HashMap<String, (Vec<&WindowState>, Vec<&ActiveWindowInfo>)> = HashMap::new();
 
         // Group saved windows by basename
@@ -89,20 +90,98 @@ impl WindowSpyEngine for WindowsWindowSpy {
             groups.entry(base).or_default().1.push(act);
         }
 
-        let mut match_map: HashMap<*const WindowState, &ActiveWindowInfo> = HashMap::new();
         let mut launches: Vec<&WindowState> = Vec::new();
-        let mut minimizes: Vec<&ActiveWindowInfo> = Vec::new();
-
         for (_base, (saved_wins, act_wins)) in &groups {
             for (i, saved_win) in saved_wins.iter().enumerate() {
-                if i < act_wins.len() {
-                    match_map.insert(*saved_win as *const WindowState, act_wins[i]);
-                } else {
+                if i >= act_wins.len() {
                     launches.push(*saved_win);
                 }
             }
+        }
+
+        if !launches.is_empty() {
+            // Launch the missing instances
+            for saved_win in &launches {
+                launch_app(&saved_win.app_name);
+            }
+
+            // Deduplicate basenames of apps we launched to poll for them
+            let mut missing_basenames: std::collections::HashSet<String> = launches
+                .iter()
+                .map(|w| get_basename(&w.app_name).to_lowercase())
+                .collect();
+
+            // Poll for the new windows to appear (up to 5 seconds)
+            for _ in 0..25 {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+
+                if let Ok(current_active) = capture_active_windows_raw(false) {
+                    missing_basenames.retain(|base| {
+                        !current_active.iter().any(|act| {
+                            get_basename(&act.state.app_name).to_lowercase() == *base
+                        })
+                    });
+
+                    if missing_basenames.is_empty() {
+                        break;
+                    }
+                }
+            }
+
+            // Re-capture active windows to get the final list containing the newly launched apps
+            if let Ok(final_active) = capture_active_windows_raw(false) {
+                active_windows = final_active;
+            }
+        }
+
+        // Step 2: Now that all apps have been launched and we have their active windows, match and position them.
+        let mut final_groups: HashMap<String, (Vec<&WindowState>, Vec<&ActiveWindowInfo>)> = HashMap::new();
+
+        // Group saved windows by basename (same as before)
+        for saved_win in &workspace.windows {
+            if saved_win.app_name == "Unknown" {
+                continue;
+            }
+            let base = get_basename(&saved_win.app_name).to_lowercase();
+            if let Some(ref our_base) = our_basename {
+                if base == *our_base {
+                    continue;
+                }
+            }
+            if base.contains("context-switch") {
+                continue;
+            }
+            final_groups.entry(base).or_default().0.push(saved_win);
+        }
+
+        // Group final active windows by basename
+        for act in &active_windows {
+            if act.state.process_id == our_pid {
+                continue;
+            }
+            let base = get_basename(&act.state.app_name).to_lowercase();
+            if let Some(ref our_base) = our_basename {
+                if base == *our_base {
+                    continue;
+                }
+            }
+            if base.contains("context-switch") {
+                continue;
+            }
+            final_groups.entry(base).or_default().1.push(act);
+        }
+
+        let mut match_map: HashMap<*const WindowState, &ActiveWindowInfo> = HashMap::new();
+        let mut extra_active: Vec<&ActiveWindowInfo> = Vec::new();
+
+        for (_base, (saved_wins, act_wins)) in &final_groups {
+            for (i, saved_win) in saved_wins.iter().enumerate() {
+                if i < act_wins.len() {
+                    match_map.insert(*saved_win as *const WindowState, act_wins[i]);
+                }
+            }
             for act_win in act_wins.iter().skip(saved_wins.len()) {
-                minimizes.push(*act_win);
+                extra_active.push(*act_win);
             }
         }
 
@@ -121,40 +200,32 @@ impl WindowSpyEngine for WindowsWindowSpy {
             if base.contains("context-switch") {
                 continue;
             }
-            if !groups.contains_key(&base) {
+            if !final_groups.contains_key(&base) {
                 unmatched.push(act);
             }
         }
 
-        // 1. Handle excess and unmatched active windows
+        // Handle excess and unmatched active windows (close or minimize them)
         if close_others {
-            // Close excess windows from matched groups
-            for act in &minimizes {
+            for act in &extra_active {
                 unsafe {
                     PostMessageW(act.hwnd, WM_CLOSE, 0, 0);
                 }
             }
-            // Close windows from apps not in the workspace at all
             for act in &unmatched {
                 unsafe {
                     PostMessageW(act.hwnd, WM_CLOSE, 0, 0);
                 }
             }
         } else {
-            // Just minimize excess windows
-            for act in &minimizes {
+            for act in &extra_active {
                 unsafe {
                     ShowWindow(act.hwnd, SW_MINIMIZE);
                 }
             }
         }
 
-        // 2. Launch missing instances
-        for saved_win in launches {
-            launch_app(&saved_win.app_name);
-        }
-
-        // 3. Restore paired windows in REVERSE order to correctly reconstruct focus Z-order
+        // Restore paired windows in REVERSE order to correctly reconstruct focus Z-order
         for saved_win in workspace.windows.iter().rev() {
             let saved_key = saved_win as *const WindowState;
             if let Some(act) = match_map.get(&saved_key) {
@@ -163,12 +234,44 @@ impl WindowSpyEngine for WindowsWindowSpy {
                     SetForegroundWindow(act.hwnd);
 
                     if saved_win.is_maximized {
+                        use windows_sys::Win32::Graphics::Gdi::{
+                            GetMonitorInfoW, MonitorFromRect, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+                        };
+
                         ShowWindow(act.hwnd, SW_RESTORE);
+
+                        let rect = RECT {
+                            left: saved_win.x,
+                            top: saved_win.y,
+                            right: saved_win.x + saved_win.width,
+                            bottom: saved_win.y + saved_win.height,
+                        };
+
+                        let mut target_x = saved_win.x;
+                        let mut target_y = saved_win.y;
+
+                        let hmonitor = MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
+                        if hmonitor != 0 {
+                            let mut monitor_info = MONITORINFO {
+                                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                                rcMonitor: std::mem::zeroed(),
+                                rcWork: std::mem::zeroed(),
+                                dwFlags: 0,
+                            };
+                            let success = GetMonitorInfoW(hmonitor, &mut monitor_info);
+                            if success != 0 {
+                                // Position the restored window slightly inside the target monitor boundaries
+                                // to ensure the OS associates it with that monitor before maximizing.
+                                target_x = saved_win.x.max(monitor_info.rcMonitor.left + 10);
+                                target_y = saved_win.y.max(monitor_info.rcMonitor.top + 10);
+                            }
+                        }
+
                         SetWindowPos(
                             act.hwnd,
                             0, // HWND_TOP
-                            saved_win.x,
-                            saved_win.y,
+                            target_x,
+                            target_y,
                             saved_win.width,
                             saved_win.height,
                             SWP_SHOWWINDOW,
@@ -532,6 +635,62 @@ fn try_launch_riot(app_path: &str) -> Result<bool, String> {
     Ok(false)
 }
 
+fn try_launch_discord(app_path: &str) -> Result<bool, String> {
+    let path_lower = app_path.to_lowercase().replace('/', "\\");
+    if let Some(idx) = path_lower.find("\\discord") {
+        if let Some(slash_idx) = path_lower[idx + 8..].find('\\') {
+            let end_idx = idx + 8 + slash_idx;
+            let discord_dir_str = &app_path[..end_idx];
+            let discord_dir = std::path::Path::new(discord_dir_str);
+            if discord_dir.exists() {
+                // Find all subdirectories starting with "app-"
+                let mut app_dirs = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(discord_dir) {
+                    for entry in entries.flatten() {
+                        if let Ok(file_type) = entry.file_type() {
+                            if file_type.is_dir() {
+                                let name = entry.file_name().to_string_lossy().to_string();
+                                if name.starts_with("app-") {
+                                    app_dirs.push(name);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Sort to find the latest version (e.g. app-1.0.9245)
+                app_dirs.sort();
+                if let Some(latest_app_dir) = app_dirs.last() {
+                    let process_name = get_basename(app_path);
+                    let target_exe = discord_dir.join(latest_app_dir).join(process_name);
+                    if target_exe.exists() {
+                        println!(
+                            "[Windows Engine] Launching Discord-family app directly: {:?}",
+                            target_exe
+                        );
+                        match std::process::Command::new(&target_exe)
+                            .current_dir(discord_dir.join(latest_app_dir))
+                            .spawn()
+                        {
+                            Ok(_) => {
+                                println!("[Windows Engine] Spawned Discord successfully");
+                                return Ok(true);
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "[Windows Engine] Failed to spawn Discord directly: {:?}",
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 fn launch_app(app_path: &str) {
     if let Ok(true) = try_launch_steam(app_path) {
         return;
@@ -540,6 +699,9 @@ fn launch_app(app_path: &str) {
         return;
     }
     if let Ok(true) = try_launch_riot(app_path) {
+        return;
+    }
+    if let Ok(true) = try_launch_discord(app_path) {
         return;
     }
     

@@ -6,6 +6,12 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "core:window:default",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

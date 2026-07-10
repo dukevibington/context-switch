@@ -39,6 +39,19 @@ enum BackgroundJob {
         id: String,
         responder: Sender<Result<Workspace, String>>,
     },
+    ToggleFavorite {
+        id: String,
+        responder: Sender<Result<bool, String>>,
+    },
+    GetSetting {
+        key: String,
+        responder: Sender<Result<Option<String>, String>>,
+    },
+    SetSetting {
+        key: String,
+        value: String,
+        responder: Sender<Result<(), String>>,
+    },
 }
 
 pub struct AppState {
@@ -75,7 +88,10 @@ fn get_memory_usage() -> u64 {
 fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
     let db_path = database::get_default_db_path();
     let mut db = match DatabaseManager::new(db_path) {
-        Ok(manager) => manager,
+        Ok(manager) => {
+            println!("[Daemon] SQLite database connection established successfully.");
+            manager
+        }
         Err(e) => {
             eprintln!("Failed to initialize ContextSwitch SQLite DB: {:?}", e);
             return;
@@ -83,6 +99,10 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
     };
 
     let engine = create_engine();
+    println!("[Daemon] Active Window Spy Engine loaded.");
+    if let Ok(workspaces) = db.list_workspaces() {
+        println!("[Daemon] Loaded database with {} saved workspaces.", workspaces.len());
+    }
 
     while let Ok(job) = rx.recv() {
         match job {
@@ -93,9 +113,12 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
                         id,
                         name,
                         created_at: chrono::Utc::now().timestamp(),
+                        is_favorite: false,
                         windows,
                     };
+                    println!("[Daemon] Capturing workspace '{}' with {} active window(s)...", workspace.name, workspace.windows.len());
                     db.save_workspace(&workspace).map_err(|e| e.to_string())?;
+                    println!("[Daemon] Workspace '{}' ({}) captured and saved successfully.", workspace.name, workspace.id);
                     Ok(workspace)
                 })();
                 let _ = responder.send(res);
@@ -106,7 +129,9 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
                         .get_workspace_by_id(&id)
                         .map_err(|e| e.to_string())?
                         .ok_or_else(|| "Workspace not found".to_string())?;
+                    println!("[Daemon] Restoring workspace '{}' (close_others={})...", workspace.name, close_others);
                     engine.restore_workspace(&workspace, close_others)?;
+                    println!("[Daemon] Workspace '{}' restored successfully.", workspace.name);
                     Ok(())
                 })();
                 let _ = responder.send(res);
@@ -128,6 +153,12 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
             }
             BackgroundJob::Delete { id, responder } => {
                 let res = (|| -> Result<(), String> {
+                    let name = db.get_workspace_by_id(&id)
+                        .ok()
+                        .flatten()
+                        .map(|w| w.name)
+                        .unwrap_or_else(|| id.clone());
+                    println!("[Daemon] Deleting workspace '{}'...", name);
                     db.delete_workspace_by_id(&id).map_err(|e| e.to_string())?;
                     
                     // Clean up thumbnail
@@ -138,6 +169,7 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
                     if thumb_path.exists() {
                         let _ = std::fs::remove_file(thumb_path);
                     }
+                    println!("[Daemon] Workspace '{}' deleted successfully.", name);
                     Ok(())
                 })();
                 let _ = responder.send(res);
@@ -148,17 +180,40 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
                         .get_workspace_by_id(&id)
                         .map_err(|e| e.to_string())?
                         .ok_or_else(|| "Workspace not found".to_string())?;
-
+                    println!("[Daemon] Updating workspace '{}'...", existing.name);
                     let windows = engine.capture_windows()?;
                     let workspace = Workspace {
                         id,
-                        name: existing.name,
+                        name: existing.name.clone(),
                         created_at: chrono::Utc::now().timestamp(),
+                        is_favorite: existing.is_favorite,
                         windows,
                     };
                     db.save_workspace(&workspace).map_err(|e| e.to_string())?;
+                    println!("[Daemon] Workspace '{}' updated successfully with {} active window(s).", workspace.name, workspace.windows.len());
                     Ok(workspace)
                 })();
+                let _ = responder.send(res);
+            }
+            BackgroundJob::ToggleFavorite { id, responder } => {
+                let name = db.get_workspace_by_id(&id)
+                    .ok()
+                    .flatten()
+                    .map(|w| w.name)
+                    .unwrap_or_else(|| id.clone());
+                println!("[Daemon] Toggling favorite status for workspace '{}'...", name);
+                let res = db.toggle_workspace_favorite(&id).map_err(|e| e.to_string());
+                if let Ok(fav) = &res {
+                    println!("[Daemon] Workspace '{}' favorite set to {}.", name, fav);
+                }
+                let _ = responder.send(res);
+            }
+            BackgroundJob::GetSetting { key, responder } => {
+                let res = db.get_setting(&key).map_err(|e| e.to_string());
+                let _ = responder.send(res);
+            }
+            BackgroundJob::SetSetting { key, value, responder } => {
+                let res = db.set_setting(&key, &value).map_err(|e| e.to_string());
                 let _ = responder.send(res);
             }
         }
@@ -387,6 +442,66 @@ pub mod commands {
             .map_err(|e| e.to_string())?;
         rx.recv().map_err(|e| e.to_string())?
     }
+
+    #[tauri::command]
+    pub async fn toggle_workspace_favorite(
+        id: String,
+        state: State<'_, AppState>,
+    ) -> Result<bool, String> {
+        let (tx, rx) = channel();
+        state
+            .job_tx
+            .send(BackgroundJob::ToggleFavorite { id, responder: tx })
+            .map_err(|e| e.to_string())?;
+        rx.recv().map_err(|e| e.to_string())?
+    }
+
+    #[tauri::command]
+    pub async fn update_hotkey(
+        new_hotkey: String,
+        app: tauri::AppHandle,
+        state: State<'_, AppState>,
+    ) -> Result<(), String> {
+        let new_shortcut = new_hotkey.parse::<tauri_plugin_global_shortcut::Shortcut>()
+            .map_err(|e| format!("Invalid shortcut: {}", e))?;
+
+        let (tx_get, rx_get) = channel();
+        state
+            .job_tx
+            .send(BackgroundJob::GetSetting { key: "hotkey".to_string(), responder: tx_get })
+            .map_err(|e| e.to_string())?;
+        let old_hotkey = rx_get.recv().map_err(|e| e.to_string())??
+            .unwrap_or_else(|| "alt+space".to_string());
+
+        use tauri_plugin_global_shortcut::GlobalShortcutExt;
+        if let Ok(old_shortcut) = old_hotkey.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+            let _ = app.global_shortcut().unregister(old_shortcut);
+        }
+
+        app.global_shortcut().register(new_shortcut)
+            .map_err(|e| format!("Failed to register hotkey: {}", e))?;
+
+        let (tx_set, rx_set) = channel();
+        state
+            .job_tx
+            .send(BackgroundJob::SetSetting { key: "hotkey".to_string(), value: new_hotkey, responder: tx_set })
+            .map_err(|e| e.to_string())?;
+        rx_set.recv().map_err(|e| e.to_string())??;
+
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub async fn get_current_hotkey(state: State<'_, AppState>) -> Result<String, String> {
+        let (tx, rx) = channel();
+        state
+            .job_tx
+            .send(BackgroundJob::GetSetting { key: "hotkey".to_string(), responder: tx })
+            .map_err(|e| e.to_string())?;
+        let hotkey = rx.recv().map_err(|e| e.to_string())??
+            .unwrap_or_else(|| "alt+space".to_string());
+        Ok(hotkey)
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -408,35 +523,37 @@ pub fn run() {
             commands::delete_workspace_by_id,
             commands::update_workspace_by_id,
             commands::get_workspace_thumbnail_path,
-            commands::open_thumbnail_in_system_viewer
+            commands::open_thumbnail_in_system_viewer,
+            commands::toggle_workspace_favorite,
+            commands::update_hotkey,
+            commands::get_current_hotkey
         ])
-        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, shortcut, event| {
-            use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
+        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, _shortcut, event| {
+            use tauri_plugin_global_shortcut::ShortcutState;
             if event.state() == ShortcutState::Pressed {
-                if shortcut.key == Code::Space && shortcut.mods.contains(Modifiers::ALT) {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let is_visible = window.is_visible().unwrap_or(false);
-                        if is_visible {
-                            let _ = window.hide();
-                        } else {
-                            let _ = window.show();
-                            let _ = window.set_focus();
+                // Any registered global shortcut triggers toggle behavior
+                if let Some(window) = app.get_webview_window("main") {
+                    let is_visible = window.is_visible().unwrap_or(false);
+                    if is_visible {
+                        let _ = window.hide();
+                    } else {
+                        let _ = window.show();
+                        let _ = window.set_focus();
 
-                            // Explicitly force HWND_TOPMOST in Win32 to ensure overlay precedence over borderless games
-                            #[cfg(target_os = "windows")]
-                            {
-                                if let Ok(hwnd) = window.hwnd() {
-                                    unsafe {
-                                        use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                            SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW
-                                        };
-                                        SetWindowPos(
-                                            hwnd.0 as _,
-                                            HWND_TOPMOST,
-                                            0, 0, 0, 0,
-                                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
-                                        );
-                                    }
+                        // Explicitly force HWND_TOPMOST in Win32 to ensure overlay precedence over borderless games
+                        #[cfg(target_os = "windows")]
+                        {
+                            if let Ok(hwnd) = window.hwnd() {
+                                unsafe {
+                                    use windows_sys::Win32::UI::WindowsAndMessaging::{
+                                        SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW
+                                    };
+                                    let _ = SetWindowPos(
+                                        hwnd.0 as _,
+                                        HWND_TOPMOST,
+                                        0, 0, 0, 0,
+                                        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+                                    );
                                 }
                             }
                         }
@@ -444,10 +561,32 @@ pub fn run() {
                 }
             }
         }).build())
+        .plugin(tauri_plugin_window_state::Builder::default()
+            .with_state_flags(tauri_plugin_window_state::StateFlags::all() & !tauri_plugin_window_state::StateFlags::VISIBLE)
+            .build()
+        )
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .setup(|app| {
-            use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, GlobalShortcutExt};
-            let shortcut = Shortcut::new(Some(Modifiers::ALT), Code::Space);
-            let _ = app.global_shortcut().register(shortcut);
+            let (tx, rx) = channel();
+            let _ = app.state::<AppState>().job_tx.send(BackgroundJob::GetSetting {
+                key: "hotkey".to_string(),
+                responder: tx,
+            });
+            
+            let hotkey_str = rx.recv()
+                .ok()
+                .and_then(|r| r.ok())
+                .flatten()
+                .unwrap_or_else(|| "alt+space".to_string());
+
+            println!("[Daemon] Registering global hotkey: {}", hotkey_str);
+
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
+            if let Ok(shortcut) = hotkey_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+                if let Err(e) = app.global_shortcut().register(shortcut) {
+                    eprintln!("Failed to register startup hotkey '{}': {:?}", hotkey_str, e);
+                }
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
