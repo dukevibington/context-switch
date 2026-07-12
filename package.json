@@ -1,0 +1,13 @@
+{
+  "name": "context-switch",
+  "version": "0.1.0",
+  "description": "ContextSwitch background daemon window state manager",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

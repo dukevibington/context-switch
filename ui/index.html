@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ContextSwitch Dashboard</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;600;700&family=Archivo+Narrow:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;700&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    :root {
+      --bg-dark: #0d0f12;
+      --bg-panel: #161a22;
+      --bg-card: #212631;
+      --bg-header: rgba(22, 26, 34, 0.7);
+      --accent: #4f46e5;
+      --accent-hover: #6366f1;
+      --accent-shadow: rgba(79, 70, 229, 0.4);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border: #30363d;
+      --success: #10b981;
+      --font-main: 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-headline: 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --overlay-bg: rgba(8, 9, 12, 0.85);
+      --console-bg: #08090c;
+      --console-text: #38bdf8;
+      --console-warning: #f59e0b;
+      --console-error: #ef4444;
+    }
+
+
+
+    /* Kinetic Dark */
+    body.theme-kinetic {
+      --bg-dark: #0a0a0c;
+      --bg-panel: #0e0e10;
+      --bg-card: #18181c;
+      --bg-header: rgba(14, 14, 16, 0.75);
+      --accent: #9146ff;
+      --accent-hover: #a875ff;
+      --accent-shadow: rgba(145, 70, 255, 0.4);
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --border: #27272a;
+      --success: #00f5d4;
+      --overlay-bg: rgba(10, 10, 12, 0.85);
+      --console-bg: #050507;
+      --console-text: #9146ff;
+      --console-warning: #f59e0b;
+      --console-error: #ff3b64;
+    }
+
+    /* Fluent Clarity (Premium Light Mode) */
+    body.theme-fluent {
+      --bg-dark: #f5f6f8;
+      --bg-panel: #ffffff;
+      --bg-card: #f9fafb;
+      --bg-header: rgba(255, 255, 255, 0.8);
+      --accent: #f43f5e;
+      --accent-hover: #e11d48;
+      --accent-shadow: rgba(244, 63, 94, 0.25);
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --success: #10b981;
+      --overlay-bg: rgba(255, 255, 255, 0.9);
+      --console-bg: #f9fafb;
+      --console-text: #f43f5e;
+      --console-warning: #d97706;
+      --console-error: #ef4444;
+    }
+
+    /* Lumina Precision */
+    body.theme-lumina {
+      --bg-dark: #0a0a0a;
+      --bg-panel: #0e0e0f;
+      --bg-card: #16161a;
+      --bg-header: rgba(14, 14, 15, 0.75);
+      --accent: #007aff;
+      --accent-hover: #3395ff;
+      --accent-shadow: rgba(0, 122, 255, 0.4);
+      --text-main: #f5f5f7;
+      --text-muted: #8e8e93;
+      --border: #2c2c2e;
+      --success: #30d158;
+      --overlay-bg: rgba(10, 10, 10, 0.85);
+      --console-bg: #050505;
+      --console-text: #007aff;
+      --console-warning: #d75a00;
+      --console-error: #ff3b30;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-main);
+    }
+
+    h1, h2, h3, .panel-title, .confirm-box h3, .workspace-info h3 {
+      font-family: var(--font-headline);
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+    }
+
+    /* General transition for premium feel */
+    .panel, .workspace-card, .btn, .input-field, header, .theme-selector, .confirm-box, .console {
+      transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    /* Premium Glassmorphism Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: var(--bg-header);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    #closeBtn {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Arial, sans-serif;
+    }
+
+    #closeBtn:hover {
+      border-color: var(--text-main);
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    /* Settings section at bottom of panel */
+    .settings-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-top: 1rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .setting-row kbd {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1rem 0.35rem;
+      font-family: var(--font-main);
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    body.theme-fluent .logo-icon img {
+      filter: invert(0.85);
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(to right, var(--text-main), var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: var(--success);
+      padding: 0.35rem 0.75rem;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      }
+
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+      }
+
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      }
+    }
+
+    /* Premium Theme Selector styles */
+    .theme-selector {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      padding: 0.25rem 0.4rem;
+      border-radius: 50px;
+      margin-right: 0.5rem;
+    }
+
+    .theme-btn {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background-color: var(--theme-color);
+      border: 1.5px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .theme-btn:hover {
+      transform: scale(1.25);
+    }
+
+    .theme-btn.active {
+      border-color: var(--text-main);
+      box-shadow: 0 0 6px var(--theme-color);
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      overflow: hidden;
+    }
+
+    /* Scrollbar Styling */
+    .workspace-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .workspace-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .workspace-list::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    .workspace-list::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* Dashboard Panels */
+    .panel {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+    }
+
+    /* Control Buttons */
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .btn {
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.75rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background-color: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px var(--accent-shadow);
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--bg-card);
+      border-color: var(--text-muted);
+      box-shadow: none;
+    }
+
+    /* Input Field */
+    .input-field {
+      width: 100%;
+      background-color: var(--bg-dark);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .input-field:focus {
+      border-color: var(--accent);
+    }
+
+    /* Workspace Cards & List */
+    .workspace-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      overflow-y: auto;
+      padding-right: 0.25rem;
+    }
+
+    .workspace-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: border-color 0.2s;
+    }
+
+    .workspace-card:hover {
+      border-color: var(--accent);
+    }
+
+    .workspace-info h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .workspace-info p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .card-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.4rem;
+      width: 100%;
+    }
+
+    .card-actions .btn {
+      justify-content: center;
+      padding: 0.5rem 0.25rem;
+      font-size: 0.75rem;
+    }
+
+    /* Custom Confirm Modal */
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--overlay-bg);
+      backdrop-filter: blur(6px);
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .confirm-overlay.active {
+      display: flex;
+    }
+
+    .confirm-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      width: 100%;
+      max-width: 340px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    .confirm-box h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.6rem;
+      color: var(--text-main);
+    }
+
+    .confirm-box p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 1rem;
+    }
+
+    .confirm-box .warning-text {
+      color: #f59e0b;
+      font-weight: 600;
+    }
+
+    .confirm-box .danger-text {
+      color: #ef4444;
+      font-weight: 600;
+    }
+
+    .confirm-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .confirm-actions .btn {
+      flex: 1;
+      justify-content: center;
+      padding: 0.6rem 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .btn-danger {
+      background-color: #ef4444;
+      color: white;
+      border: none;
+    }
+
+    .btn-danger:hover {
+      background-color: #dc2626;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-warning {
+      background-color: #f59e0b;
+      color: #0d0f12;
+      border: none;
+    }
+
+    .btn-warning:hover {
+      background-color: #d97706;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+
+    /* Thumbnail Box Styling */
+    .workspace-thumbnail {
+      width: 100%;
+      height: 100px;
+      background-color: var(--bg-dark);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+    }
+
+    .workspace-thumbnail img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Switch Slider Styles */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 38px;
+      height: 20px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--border);
+      transition: .3s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked+.slider {
+      background-color: var(--accent);
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(18px);
+    }
+
+    /* Logs & Terminal output */
+    .console {
+      background-color: var(--console-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      padding: 1rem;
+      font-size: 0.85rem;
+      color: var(--console-text);
+      height: 250px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .console-line {
+      line-height: 1.4;
+    }
+
+    .console-info { color: var(--console-text, #38bdf8); }
+    .console-success { color: var(--success); }
+    .console-warning { color: var(--console-warning, #f59e0b); }
+    .console-error { color: var(--console-error, #ef4444); }
+
+    .console-time {
+      color: var(--text-muted);
+      margin-right: 0.5rem;
+    }
+
+    /* Stats Panel */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+    }
+
+    .stat-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.5rem;
+      text-align: center;
+    }
+
+    .stat-val {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent-hover);
+      margin: 0.25rem 0;
+    }
+
+    .stat-lbl {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Thumbnail Click & Hover */
+    .workspace-thumbnail {
+      cursor: pointer;
+      position: relative;
+    }
+
+    .workspace-thumbnail:hover::after {
+      content: "View in Photo Viewer";
+      position: absolute;
+      background: rgba(8, 9, 12, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+      padding: 0.35rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      bottom: 0.5rem;
+      right: 0.5rem;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+      z-index: 10;
+    }
+
+    /* Tabs & Search Styling */
+    .tabs-container {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+      gap: 1rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.5rem 0.25rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      color: var(--accent-hover);
+      border-bottom-color: var(--accent);
+    }
+
+    .star-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    }
+
+    .star-btn:hover {
+      transform: scale(1.2);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Custom Confirm Modal -->
+  <div id="confirmOverlay" class="confirm-overlay">
+    <div class="confirm-box">
+      <h3 id="confirmTitle">Confirm</h3>
+      <p id="confirmMessage">Are you sure?</p>
+      <div class="confirm-actions">
+        <button id="confirmCancel" class="btn btn-secondary">Cancel</button>
+        <button id="confirmOk" class="btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Input Modal -->
+  <div id="inputOverlay" class="confirm-overlay">
+    <div class="confirm-box">
+      <h3 id="inputTitle">Capture Workspace</h3>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Enter a name for this workspace:</p>
+      <input type="text" id="modalWorkspaceName" class="input-field" placeholder="Workspace Name (e.g., 'Coding Session')" style="margin-bottom: 1rem;" />
+      <div class="confirm-actions">
+        <button id="inputCancel" class="btn btn-secondary">Cancel</button>
+        <button id="inputOk" class="btn">Capture</button>
+      </div>
+    </div>
+  </div>
+
+  <header data-tauri-drag-region>
+    <div class="logo-container" data-tauri-drag-region>
+      <div class="logo-icon" data-tauri-drag-region>
+        <img src="logo.png" data-tauri-drag-region />
+      </div>
+      <div style="display: flex; flex-direction: column; line-height: 1.1;" data-tauri-drag-region>
+        <h1 style="font-size: 1.2rem; margin: 0;" data-tauri-drag-region>ContextSwitch</h1>
+        <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 500; letter-spacing: 0.02em;" data-tauri-drag-region>by dukevibington.com</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <!-- Theme Selector -->
+      <div class="theme-selector">
+        <button class="theme-btn active" data-theme="default" title="Default Theme" style="--theme-color: #4f46e5;"></button>
+        <button class="theme-btn" data-theme="kinetic" title="Kinetic Dark" style="--theme-color: #9146ff;"></button>
+        <button class="theme-btn" data-theme="fluent" title="Fluent Clarity (Light Mode)" style="--theme-color: #f43f5e;"></button>
+        <button class="theme-btn" data-theme="lumina" title="Lumina Precision" style="--theme-color: #007aff;"></button>
+      </div>
+
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        Active
+      </div>
+      <button id="closeBtn">×</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Capture & Sizing Manager -->
+    <div class="panel">
+      <!-- Capture Button Section -->
+      <div class="button-group">
+        <button id="captureBtn" class="btn" style="width: 100%; justify-content: center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+          Capture Current Workspace
+        </button>
+      </div>
+
+      <!-- Search bar & Tabs layout -->
+      <div style="margin-top: 1rem;">
+        <input type="text" id="searchBar" class="input-field" placeholder="Search workspaces..." style="margin-bottom: 1rem;" />
+        <div class="tabs-container">
+          <button class="tab-btn active" id="tabSaved">Saved Workspaces</button>
+          <button class="tab-btn" id="tabFavorites">Favorites</button>
+        </div>
+      </div>
+
+      <div id="workspaceList" class="workspace-list">
+        <!-- Dynamically populated -->
+        <div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 2rem 0;">
+          No workspaces saved yet. Capture your first workspace above!
+        </div>
+      </div>
+
+      <!-- Settings & Configuration Section -->
+      <div class="settings-section">
+        <div class="setting-row">
+          <span>Include Screenshot Preview</span>
+          <label class="switch">
+            <input type="checkbox" id="screenshotToggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <span>Launch on System Startup</span>
+          <label class="switch">
+            <input type="checkbox" id="autostartToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <span>Toggle Hotkey: <kbd id="currentHotkeyLabel">alt+space</kbd></span>
+          <button id="changeHotkeyBtn" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Change</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+
+
+  <script>
+    const workspaceList = document.getElementById('workspaceList');
+
+    function log(message, type = 'info') {
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    // Attempt to connect to Tauri v2 IPC if available
+    let invoke = null;
+    if (window.__TAURI__) {
+      invoke = window.__TAURI__.core.invoke;
+      log("Bound successfully to Tauri Core IPC.", "success");
+      refreshWorkspaces();
+    } else {
+      log("Running inside normal browser sandbox (Simulation Mode).", "warning");
+    }
+
+    let currentTab = 'saved';
+    let searchQuery = '';
+
+    document.getElementById('searchBar').oninput = (e) => {
+      searchQuery = e.target.value.toLowerCase().trim();
+      refreshWorkspaces();
+    };
+
+    const tabSaved = document.getElementById('tabSaved');
+    const tabFavorites = document.getElementById('tabFavorites');
+
+    tabSaved.onclick = () => {
+      currentTab = 'saved';
+      tabSaved.classList.add('active');
+      tabFavorites.classList.remove('active');
+      refreshWorkspaces();
+    };
+
+    tabFavorites.onclick = () => {
+      currentTab = 'favorites';
+      tabFavorites.classList.add('active');
+      tabSaved.classList.remove('active');
+      refreshWorkspaces();
+    };
+
+    async function refreshWorkspaces() {
+      if (!invoke) return;
+      try {
+        let workspaces = await invoke('list_workspaces');
+
+        // Filter by tab
+        if (currentTab === 'favorites') {
+          workspaces = workspaces.filter(ws => ws.is_favorite);
+        }
+
+        // Filter by search query
+        if (searchQuery) {
+          workspaces = workspaces.filter(ws => (ws.name || '').toLowerCase().includes(searchQuery));
+        }
+        if (workspaces.length === 0) {
+          const emptyMsg = searchQuery 
+            ? "No workspaces match your query."
+            : (currentTab === 'favorites' 
+                ? "No workspaces favorited yet. Click the star icon on any workspace to add it!" 
+                : "No workspaces saved yet. Capture your first workspace above!");
+          workspaceList.innerHTML = `<div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 2rem 0;">${emptyMsg}</div>`;
+          return;
+        }
+
+        workspaceList.innerHTML = '';
+        for (const ws of workspaces) {
+          const card = document.createElement('div');
+          card.className = 'workspace-card';
+
+          // Fetch thumbnail if available
+          const thumbPath = await invoke('get_workspace_thumbnail_path', { id: ws.id });
+          if (thumbPath) {
+            const thumbDiv = document.createElement('div');
+            thumbDiv.className = 'workspace-thumbnail';
+            const img = document.createElement('img');
+            img.src = window.__TAURI__.core.convertFileSrc(thumbPath) + "?t=" + Date.now();
+            thumbDiv.appendChild(img);
+            thumbDiv.onclick = () => {
+              if (invoke) {
+                invoke('open_thumbnail_in_system_viewer', { id: ws.id }).catch(e => {
+                  log(`Failed to open photo viewer: ${e}`, 'error');
+                });
+              }
+            };
+            card.appendChild(thumbDiv);
+          }
+
+          const info = document.createElement('div');
+          info.className = 'workspace-info';
+          const dateStr = new Date(ws.created_at * 1000).toLocaleString();
+
+          const starIcon = ws.is_favorite 
+            ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="2">
+                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+               </svg>`
+            : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+               </svg>`;
+
+          info.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+              <h3 style="margin: 0; font-size: 1rem;">${ws.name || 'Unnamed Workspace'}</h3>
+              <button class="star-btn">
+                ${starIcon}
+              </button>
+            </div>
+            <p>${ws.windows.length} windows • Captured: ${dateStr}</p>
+          `;
+
+          const starBtn = info.querySelector('.star-btn');
+          starBtn.onclick = async (e) => {
+            e.stopPropagation();
+            log(`Toggling favorite for "${ws.name}"...`, 'info');
+            try {
+              const newState = await invoke('toggle_workspace_favorite', { id: ws.id });
+              log(`Workspace "${ws.name}" ${newState ? 'added to favorites' : 'removed from favorites'}.`, 'success');
+              refreshWorkspaces();
+            } catch (err) {
+              log(`Failed to toggle favorite: ${err}`, 'error');
+            }
+          };
+
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
+
+          // Row 1: Restore | Restore + Close
+          const restoreBtn = document.createElement('button');
+          restoreBtn.className = 'btn btn-secondary';
+          restoreBtn.textContent = 'Restore';
+          restoreBtn.onclick = () => restoreWorkspace(ws.id, ws.name, false);
+
+          const restoreCloseBtn = document.createElement('button');
+          restoreCloseBtn.className = 'btn btn-secondary';
+          restoreCloseBtn.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+          restoreCloseBtn.style.color = '#f59e0b';
+          restoreCloseBtn.textContent = 'Restore + Close';
+          restoreCloseBtn.onclick = () => restoreWorkspace(ws.id, ws.name, true);
+
+          // Row 2: Update | Delete
+          const updateBtn = document.createElement('button');
+          updateBtn.className = 'btn btn-secondary';
+          updateBtn.textContent = 'Update';
+          updateBtn.onclick = () => updateWorkspace(ws.id, ws.name);
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'btn btn-secondary';
+          deleteBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+          deleteBtn.style.color = '#ef4444';
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.onclick = () => deleteWorkspace(ws.id, ws.name);
+
+          actions.appendChild(restoreBtn);
+          actions.appendChild(restoreCloseBtn);
+          actions.appendChild(updateBtn);
+          actions.appendChild(deleteBtn);
+          card.appendChild(info);
+          card.appendChild(actions);
+          workspaceList.appendChild(card);
+        }
+      } catch (e) {
+        log(`Failed to list workspaces: ${e}`, 'error');
+      }
+    }
+
+    // Custom confirm modal helper
+    function showConfirm({ title, message, okText = 'Confirm', okClass = '', onConfirm }) {
+      const overlay = document.getElementById('confirmOverlay');
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').innerHTML = message;
+      const okBtn = document.getElementById('confirmOk');
+      okBtn.textContent = okText;
+      okBtn.className = 'btn ' + (okClass || '');
+      overlay.classList.add('active');
+
+      const cancelBtn = document.getElementById('confirmCancel');
+
+      function cleanup() {
+        overlay.classList.remove('active');
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+      }
+
+      okBtn.onclick = () => { cleanup(); onConfirm(); };
+      cancelBtn.onclick = () => { cleanup(); };
+    }
+
+    async function updateWorkspace(id, name) {
+      showConfirm({
+        title: 'Update Workspace',
+        message: `Update <strong>"${name}"</strong> with your current screen layout?`,
+        okText: 'Update',
+        okClass: 'btn-warning',
+        onConfirm: async () => {
+          const captureScreenshot = document.getElementById('screenshotToggle').checked;
+          log(`Updating workspace "${name}" layout...`, 'info');
+          if (!invoke) {
+            log(`Simulation: Updated ${id} layout.`, 'success');
+            return;
+          }
+          try {
+            const ws = await invoke('update_workspace_by_id', { id, captureScreenshot });
+            log(`Workspace "${name}" layout updated successfully. Now has ${ws.windows.length} window(s).`, 'success');
+            refreshWorkspaces();
+          } catch (e) {
+            log(`Failed to update: ${e}`, 'error');
+          }
+        }
+      });
+    }
+
+    async function deleteWorkspace(id, name) {
+      showConfirm({
+        title: 'Delete Workspace',
+        message: `Are you sure you want to permanently delete <strong>"${name}"</strong>? This cannot be undone.`,
+        okText: 'Delete',
+        okClass: 'btn-danger',
+        onConfirm: async () => {
+          log(`Deleting workspace "${name}"...`, 'info');
+          if (!invoke) {
+            log(`Simulation: Deleted ${id}.`, 'success');
+            return;
+          }
+          try {
+            await invoke('delete_workspace_by_id', { id });
+            log(`Workspace "${name}" deleted.`, 'success');
+            refreshWorkspaces();
+          } catch (e) {
+            log(`Failed to delete: ${e}`, 'error');
+          }
+        }
+      });
+    }
+
+    async function restoreWorkspace(id, name, closeOthers) {
+      if (closeOthers) {
+        showConfirm({
+          title: '⚠️ Restore + Close Other Apps',
+          message: `This will restore <strong>"${name}"</strong> and <span class="danger-text">close all other open applications</span> that are not part of this workspace.<br><br>Any unsaved work in other apps may be lost.`,
+          okText: 'Restore + Close Others',
+          okClass: 'btn-danger',
+          onConfirm: async () => {
+            log(`Restoring "${name}" and closing other apps...`, 'info');
+            if (!invoke) {
+              log(`Simulation: Restored + closed others for ${id}.`, 'success');
+              return;
+            }
+            try {
+              await invoke('restore_workspace_by_id', { id, closeOthers: true });
+              log(`Workspace "${name}" restored. Other apps have been closed.`, 'success');
+            } catch (e) {
+              log(`Failed to restore: ${e}`, 'error');
+            }
+          }
+        });
+      } else {
+        log(`Restoring layout for workspace "${name}"...`, 'info');
+        if (!invoke) {
+          log(`Simulation: Sizing API trigger for ${id} run.`, 'success');
+          return;
+        }
+        try {
+          await invoke('restore_workspace_by_id', { id, closeOthers: false });
+          log(`Workspace "${name}" layout restored successfully.`, 'success');
+        } catch (e) {
+          log(`Failed to restore: ${e}`, 'error');
+        }
+      }
+    }
+
+    // Programmatic window dragging
+    if (window.__TAURI__) {
+      const headerEl = document.querySelector('header');
+      if (headerEl) {
+        headerEl.addEventListener('mousedown', (e) => {
+          if (
+            e.target.tagName !== 'BUTTON' &&
+            !e.target.closest('.theme-selector') &&
+            !e.target.closest('#closeBtn')
+          ) {
+            window.__TAURI__.window.getCurrentWindow().startDragging();
+          }
+        });
+      }
+    }
+
+    if (document.getElementById('closeBtn')) {
+      document.getElementById('closeBtn').onclick = () => {
+        if (window.__TAURI__) {
+          window.__TAURI__.window.getCurrentWindow().hide();
+        } else {
+          log("Simulation: hide() triggered.", "success");
+        }
+      };
+    }
+
+    // Settings Controller
+    const autostartToggle = document.getElementById('autostartToggle');
+    const changeHotkeyBtn = document.getElementById('changeHotkeyBtn');
+    const currentHotkeyLabel = document.getElementById('currentHotkeyLabel');
+
+    if (window.__TAURI__) {
+      const autostart = window.__TAURI__.autostart;
+      if (autostart) {
+        autostart.isEnabled().then(enabled => {
+          autostartToggle.checked = enabled;
+        }).catch(err => {
+          log(`Failed to read autostart setting: ${err}`, 'error');
+        });
+
+        autostartToggle.onchange = async () => {
+          try {
+            if (autostartToggle.checked) {
+              await autostart.enable();
+              log("Autostart launch on startup enabled.", "success");
+            } else {
+              await autostart.disable();
+              log("Autostart launch on startup disabled.", "success");
+            }
+          } catch (err) {
+            log(`Failed to update autostart setting: ${err}`, "error");
+            autostartToggle.checked = !autostartToggle.checked;
+          }
+        };
+      }
+
+      invoke('get_current_hotkey').then(hotkey => {
+        currentHotkeyLabel.textContent = hotkey;
+      }).catch(err => {
+        log(`Failed to fetch active hotkey: ${err}`, 'error');
+      });
+    } else {
+      autostartToggle.onchange = () => {
+        log(`Simulation: Startup launch toggled to ${autostartToggle.checked}`, "info");
+      };
+    }
+
+    changeHotkeyBtn.onclick = () => {
+      showInputModal({
+        title: 'Configure Toggle Hotkey',
+        onConfirm: async (newHotkey) => {
+          if (!newHotkey) return;
+          try {
+            if (window.__TAURI__) {
+              await invoke('update_hotkey', { newHotkey });
+            }
+            currentHotkeyLabel.textContent = newHotkey;
+            log(`Hotkey updated successfully to ${newHotkey}`, 'success');
+          } catch (err) {
+            log(`Failed to update hotkey: ${err}`, 'error');
+            alert(`Failed to update hotkey: ${err}`);
+          }
+        }
+      });
+      const inputField = document.getElementById('modalWorkspaceName');
+      if (inputField) {
+        inputField.placeholder = 'e.g. alt+space, ctrl+shift+h';
+      }
+    };
+
+    // Custom input modal helper
+    function showInputModal({ title, onConfirm }) {
+      const overlay = document.getElementById('inputOverlay');
+      const inputField = document.getElementById('modalWorkspaceName');
+      document.getElementById('inputTitle').textContent = title;
+      inputField.value = '';
+      overlay.classList.add('active');
+      inputField.focus();
+
+      const okBtn = document.getElementById('inputOk');
+      const cancelBtn = document.getElementById('inputCancel');
+
+      function cleanup() {
+        overlay.classList.remove('active');
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+        inputField.onkeydown = null;
+      }
+
+      okBtn.onclick = () => {
+        const val = inputField.value.trim();
+        cleanup();
+        onConfirm(val);
+      };
+
+      cancelBtn.onclick = () => {
+        cleanup();
+      };
+
+      inputField.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          const val = inputField.value.trim();
+          cleanup();
+          onConfirm(val);
+        }
+      };
+    }
+
+    document.getElementById('captureBtn').onclick = () => {
+      showInputModal({
+        title: 'Capture Workspace',
+        onConfirm: async (name) => {
+          const workspaceName = name || `Workspace #${Date.now().toString().slice(-4)}`;
+          const captureScreenshot = document.getElementById('screenshotToggle').checked;
+          log(`Triggering window state scan for "${workspaceName}"...`, 'info');
+
+          if (!invoke) {
+            log(`Simulation: Captured 3 mock windows for "${workspaceName}" (screenshot: ${captureScreenshot})`, 'success');
+            return;
+          }
+
+          try {
+            const ws = await invoke('capture_current_workspace', { name: workspaceName, captureScreenshot });
+            log(`Captured & persisted workspace "${ws.name}" with ${ws.windows.length} active window(s).`, 'success');
+            refreshWorkspaces();
+          } catch (e) {
+            log(`Scan failed: ${e}`, 'error');
+          }
+        }
+      });
+    };
+
+    // Theme Switcher Logic
+    const themeButtons = document.querySelectorAll('.theme-btn');
+    
+    function applyTheme(themeName) {
+      document.body.classList.remove('theme-emerald', 'theme-kinetic', 'theme-fluent', 'theme-lumina');
+      if (themeName !== 'default') {
+        document.body.classList.add(`theme-${themeName}`);
+      }
+      
+      themeButtons.forEach(btn => {
+        if (btn.getAttribute('data-theme') === themeName) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      
+      localStorage.setItem('context-switch-theme', themeName);
+    }
+    
+    themeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const theme = btn.getAttribute('data-theme');
+        applyTheme(theme);
+        log(`Switched theme to ${btn.title}`, 'info');
+      });
+    });
+    
+    let savedTheme = localStorage.getItem('context-switch-theme') || 'default';
+    if (savedTheme === 'emerald') {
+      savedTheme = 'default';
+    }
+    applyTheme(savedTheme);
+  </script>
+</body>
+
+</html>

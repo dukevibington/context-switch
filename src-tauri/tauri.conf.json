@@ -1,0 +1,46 @@
+{
+  "productName": "ContextSwitch",
+  "version": "0.1.0",
+  "identifier": "com.contextswitch.app",
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "ContextSwitch Overlay",
+        "width": 450,
+        "height": 1000,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "label": "main"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/**/*",
+          "$HOME/**/*"
+        ]
+      }
+    }
+  },
+  "build": {
+    "frontendDist": "../ui"
+  }
+}

@@ -1,0 +1,49 @@
+[package]
+name = "context-switch-daemon"
+version = "0.1.0"
+authors = ["ContextSwitch Developers"]
+edition = "2021"
+description = "ContextSwitch background daemon window state manager"
+
+[dependencies]
+tauri = { version = "2.0.0", features = ["protocol-asset", "tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2.0.0"
+tauri-plugin-window-state = "2.0.0"
+tauri-plugin-autostart = "2.0.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
+chrono = "0.4.38"
+xcap = "0.9.6"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+tokio = { version = "1.30", features = ["time"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.52.0", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Diagnostics_ToolHelp"
+] }
+winreg = "0.10.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# We will use objc and core-graphics features to parse window hierarchies
+objc = "0.2.7"
+# We can use cocoa or core-graphics crates or interface directly. Let's use core-graphics if needed.
+# Since it is a simulation log trace mostly, we will keep dependencies minimal.
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[profile.release]
+opt-level = "z"      # Optimize for size
+lto = true           # Enable Link-Time Optimization (LTO)
+codegen-units = 1    # Reduce parallel code generation units to optimize code
+panic = "abort"      # Abort on panic to strip unwinding code
+strip = true         # Strip symbols and debug info automatically
+
+
