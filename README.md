@@ -32,7 +32,7 @@ ContextSwitch runs quietly in the background as a system utility daemon, allowin
 ---
 
 ## 📸 How it Works
-![alt text](image-1.png)
+![alt text](image-2.png)
 
 1. **Capture**: Arrange your IDE, browser, and documentation. Open ContextSwitch, click **Capture Current Workspace**, and name it.
 2. **Restore**: Switch workspaces dynamically by clicking **Restore** (ambient repositioning) or **Restore + Close** (closes other applications for a completely clean layout).

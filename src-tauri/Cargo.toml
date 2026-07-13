@@ -1,7 +1,7 @@
 [package]
 name = "context-switch-daemon"
 version = "0.1.0"
-authors = ["ContextSwitch Developers"]
+authors = ["dukevibington.com"]
 edition = "2021"
 description = "ContextSwitch background daemon window state manager"
 
@@ -45,5 +45,4 @@ lto = true           # Enable Link-Time Optimization (LTO)
 codegen-units = 1    # Reduce parallel code generation units to optimize code
 panic = "abort"      # Abort on panic to strip unwinding code
 strip = true         # Strip symbols and debug info automatically
-
 

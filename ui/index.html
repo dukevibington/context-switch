@@ -219,28 +219,6 @@
       -webkit-text-fill-color: transparent;
     }
 
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.2);
-      color: var(--success);
-      padding: 0.35rem 0.75rem;
-      border-radius: 50px;
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      background-color: var(--success);
-      border-radius: 50%;
-      box-shadow: 0 0 8px var(--success);
-      animation: pulse 2s infinite;
-    }
-
     @keyframes pulse {
       0% {
         transform: scale(0.95);
@@ -777,10 +755,6 @@
         <button class="theme-btn" data-theme="lumina" title="Lumina Precision" style="--theme-color: #007aff;"></button>
       </div>
 
-      <div class="status-badge">
-        <div class="status-dot"></div>
-        Active
-      </div>
       <button id="closeBtn">×</button>
     </div>
   </header>
