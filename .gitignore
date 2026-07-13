@@ -1,0 +1,48 @@
+# Dependencies
+/node_modules/
+
+# Rust / Cargo build output
+/target/
+/src-tauri/target/
+
+# Frontend and Tauri build output
+/dist/
+/build/
+/src-tauri/gen/schemas/
+
+# Runtime data and logs
+/logs/
+*.log
+*.log.*
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Test coverage and caches
+/coverage/
+.nyc_output/
+.cache/
+.parcel-cache/
+.turbo/
+.eslintcache
+
+# IDE and editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating-system metadata
+.DS_Store
+.AppleDouble
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
