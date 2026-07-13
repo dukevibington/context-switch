@@ -23,7 +23,7 @@ fn test_serialization() {
 
     let serialized = serde_json::to_string(&ws).expect("Failed to serialize");
     let deserialized: Workspace = serde_json::from_str(&serialized).expect("Failed to deserialize");
-    
+
     assert_eq!(deserialized.id, ws.id);
     assert_eq!(deserialized.name, ws.name);
     assert_eq!(deserialized.windows.len(), 1);
@@ -35,7 +35,7 @@ fn test_serialization() {
 #[test]
 fn test_database_persistence() {
     let mut db = DatabaseManager::new_in_memory().expect("Failed to create in-memory DB");
-    
+
     let ws = Workspace {
         id: "test-uuid-5678".to_string(),
         name: "Coding Layout".to_string(),
@@ -64,7 +64,7 @@ fn test_database_persistence() {
                 height: 600,
                 is_minimized: true,
                 is_maximized: false,
-            }
+            },
         ],
     };
 
@@ -72,22 +72,32 @@ fn test_database_persistence() {
     db.save_workspace(&ws).expect("Failed to save workspace");
 
     // Retrieve
-    let retrieved_opt = db.get_workspace_by_id("test-uuid-5678").expect("Failed to query workspace");
+    let retrieved_opt = db
+        .get_workspace_by_id("test-uuid-5678")
+        .expect("Failed to query workspace");
     assert!(retrieved_opt.is_some());
     let retrieved = retrieved_opt.unwrap();
-    
+
     assert_eq!(retrieved.id, ws.id);
     assert_eq!(retrieved.name, ws.name);
     assert_eq!(retrieved.created_at, ws.created_at);
     assert_eq!(retrieved.windows.len(), 2);
 
     // Assert sorting and fields
-    let code_win = retrieved.windows.iter().find(|w| w.app_name == "code.exe").unwrap();
+    let code_win = retrieved
+        .windows
+        .iter()
+        .find(|w| w.app_name == "code.exe")
+        .unwrap();
     assert_eq!(code_win.x, 0);
     assert_eq!(code_win.is_maximized, true);
     assert_eq!(code_win.is_minimized, false);
 
-    let chrome_win = retrieved.windows.iter().find(|w| w.app_name == "chrome.exe").unwrap();
+    let chrome_win = retrieved
+        .windows
+        .iter()
+        .find(|w| w.app_name == "chrome.exe")
+        .unwrap();
     assert_eq!(chrome_win.is_minimized, true);
     assert_eq!(chrome_win.is_maximized, false);
 
@@ -100,7 +110,7 @@ fn test_database_persistence() {
 #[test]
 fn test_engine_initialization() {
     let engine = create_engine();
-    
+
     #[cfg(target_os = "windows")]
     {
         let res = engine.capture_windows();

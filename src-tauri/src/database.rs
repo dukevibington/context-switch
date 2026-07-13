@@ -1,6 +1,6 @@
+use super::engine::{WindowState, Workspace};
 use rusqlite::{params, Connection, Result};
 use std::path::PathBuf;
-use super::engine::{WindowState, Workspace};
 
 pub struct DatabaseManager {
     conn: Connection,
@@ -69,11 +69,11 @@ impl DatabaseManager {
         )?;
 
         // Seed default hotkey if not present
-        let hotkey_check: Result<i32> = self.conn.query_row(
-            "SELECT 1 FROM settings WHERE key = 'hotkey';",
-            [],
-            |_| Ok(1),
-        );
+        let hotkey_check: Result<i32> =
+            self.conn
+                .query_row("SELECT 1 FROM settings WHERE key = 'hotkey';", [], |_| {
+                    Ok(1)
+                });
         if hotkey_check.is_err() {
             let _ = self.conn.execute(
                 "INSERT INTO settings (key, value) VALUES ('hotkey', 'alt+space');",
@@ -134,10 +134,16 @@ impl DatabaseManager {
 
     /// Retrieves a Workspace by its unique UUID ID.
     pub fn get_workspace_by_id(&self, id: &str) -> Result<Option<Workspace>> {
-        let mut stmt = self.conn.prepare("SELECT name, created_at, is_favorite FROM workspaces WHERE id = ?1;")?;
-        
+        let mut stmt = self
+            .conn
+            .prepare("SELECT name, created_at, is_favorite FROM workspaces WHERE id = ?1;")?;
+
         let ws_opt = stmt.query_row(params![id], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i32>(2)?))
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i32>(2)?,
+            ))
         });
 
         let (name, created_at, is_fav_val) = match ws_opt {
@@ -183,7 +189,9 @@ impl DatabaseManager {
 
     /// Returns a list of all stored Workspaces sorted by creation date.
     pub fn list_workspaces(&self) -> Result<Vec<Workspace>> {
-        let mut stmt = self.conn.prepare("SELECT id FROM workspaces ORDER BY created_at DESC;")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM workspaces ORDER BY created_at DESC;")?;
         let ids_iter = stmt.query_map([], |row| row.get::<_, String>(0))?;
 
         let mut workspaces = Vec::new();
@@ -199,7 +207,8 @@ impl DatabaseManager {
 
     /// Deletes a Workspace and all its associated WindowStates from the database.
     pub fn delete_workspace_by_id(&mut self, id: &str) -> Result<()> {
-        self.conn.execute("DELETE FROM workspaces WHERE id = ?1;", [id])?;
+        self.conn
+            .execute("DELETE FROM workspaces WHERE id = ?1;", [id])?;
         Ok(())
     }
 
@@ -219,7 +228,9 @@ impl DatabaseManager {
     }
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
-        let mut stmt = self.conn.prepare("SELECT value FROM settings WHERE key = ?1;")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM settings WHERE key = ?1;")?;
         let mut rows = stmt.query(params![key])?;
         if let Some(row) = rows.next()? {
             let val: String = row.get(0)?;

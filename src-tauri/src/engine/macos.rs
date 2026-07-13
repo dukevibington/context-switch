@@ -37,10 +37,7 @@ mod native {
     // Core Foundation & Core Graphics FFI Bindings
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
-        fn CGWindowListCopyWindowInfo(
-            option: u32,
-            relativeToWindow: CGWindowID,
-        ) -> CFArrayRef;
+        fn CGWindowListCopyWindowInfo(option: u32, relativeToWindow: CGWindowID) -> CFArrayRef;
     }
 
     #[link(name = "CoreFoundation", kind = "framework")]
@@ -48,25 +45,22 @@ mod native {
         fn CFArrayGetCount(theArray: CFArrayRef) -> CFIndex;
         fn CFArrayGetValueAtIndex(theArray: CFArrayRef, idx: CFIndex) -> *const c_void;
         fn CFRelease(cf: CFTypeRef);
-        
-        fn CFDictionaryGetValue(
-            theDict: CFDictionaryRef,
-            key: *const c_void,
-        ) -> *const c_void;
-        
+
+        fn CFDictionaryGetValue(theDict: CFDictionaryRef, key: *const c_void) -> *const c_void;
+
         fn CFNumberGetValue(
             number: *const c_void,
             theType: i54, // CFNumberType
             valuePtr: *mut c_void,
         ) -> u8;
-        
+
         fn CFStringGetCString(
             theString: CFStringRef,
             buffer: *mut u8,
             bufferSize: CFIndex,
             encoding: u32,
         ) -> u8;
-        
+
         static kCFTypeDictionaryKeyCallBacks: *const c_void;
         static kCFTypeDictionaryValueCallBacks: *const c_void;
     }
@@ -91,16 +85,16 @@ impl WindowSpyEngine for MacosWindowSpy {
         // 3. Construct WindowState structs for each active layer-0 window.
         //
         // This is compiled conditionally on macOS. Below is the structured trace implementation:
-        
+
         println!("[macOS Engine] Scanning window layout space using CGWindowListCopyWindowInfo...");
-        
+
         // This acts as a placeholder for structural compilation matching the requirements
         Ok(vec![])
     }
 
     fn restore_workspace(&self, workspace: &Workspace, _close_others: bool) -> Result<(), String> {
         println!("[macOS Engine] Restoring workspace: {}", workspace.name);
-        
+
         for win in &workspace.windows {
             println!(
                 "[macOS Engine] [RESTORE STATE TRACE] Target Application: '{}' (PID: {}) | Window: '{}'",
@@ -123,7 +117,7 @@ impl WindowSpyEngine for MacosWindowSpy {
                 win.width, win.height
             );
         }
-        
+
         Ok(())
     }
 }

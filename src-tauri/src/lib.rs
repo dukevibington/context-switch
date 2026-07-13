@@ -62,7 +62,9 @@ pub struct AppState {
 fn get_memory_usage() -> u64 {
     #[cfg(target_os = "windows")]
     {
-        use windows_sys::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+        use windows_sys::Win32::System::ProcessStatus::{
+            GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+        };
         use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
         unsafe {
@@ -101,12 +103,19 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
     let engine = create_engine();
     println!("[Daemon] Active Window Spy Engine loaded.");
     if let Ok(workspaces) = db.list_workspaces() {
-        println!("[Daemon] Loaded database with {} saved workspaces.", workspaces.len());
+        println!(
+            "[Daemon] Loaded database with {} saved workspaces.",
+            workspaces.len()
+        );
     }
 
     while let Ok(job) = rx.recv() {
         match job {
-            BackgroundJob::Capture { id, name, responder } => {
+            BackgroundJob::Capture {
+                id,
+                name,
+                responder,
+            } => {
                 let res = (|| -> Result<Workspace, String> {
                     let windows = engine.capture_windows()?;
                     let workspace = Workspace {
@@ -116,22 +125,39 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
                         is_favorite: false,
                         windows,
                     };
-                    println!("[Daemon] Capturing workspace '{}' with {} active window(s)...", workspace.name, workspace.windows.len());
+                    println!(
+                        "[Daemon] Capturing workspace '{}' with {} active window(s)...",
+                        workspace.name,
+                        workspace.windows.len()
+                    );
                     db.save_workspace(&workspace).map_err(|e| e.to_string())?;
-                    println!("[Daemon] Workspace '{}' ({}) captured and saved successfully.", workspace.name, workspace.id);
+                    println!(
+                        "[Daemon] Workspace '{}' ({}) captured and saved successfully.",
+                        workspace.name, workspace.id
+                    );
                     Ok(workspace)
                 })();
                 let _ = responder.send(res);
             }
-            BackgroundJob::Restore { id, close_others, responder } => {
+            BackgroundJob::Restore {
+                id,
+                close_others,
+                responder,
+            } => {
                 let res = (|| -> Result<(), String> {
                     let workspace = db
                         .get_workspace_by_id(&id)
                         .map_err(|e| e.to_string())?
                         .ok_or_else(|| "Workspace not found".to_string())?;
-                    println!("[Daemon] Restoring workspace '{}' (close_others={})...", workspace.name, close_others);
+                    println!(
+                        "[Daemon] Restoring workspace '{}' (close_others={})...",
+                        workspace.name, close_others
+                    );
                     engine.restore_workspace(&workspace, close_others)?;
-                    println!("[Daemon] Workspace '{}' restored successfully.", workspace.name);
+                    println!(
+                        "[Daemon] Workspace '{}' restored successfully.",
+                        workspace.name
+                    );
                     Ok(())
                 })();
                 let _ = responder.send(res);
@@ -153,14 +179,15 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
             }
             BackgroundJob::Delete { id, responder } => {
                 let res = (|| -> Result<(), String> {
-                    let name = db.get_workspace_by_id(&id)
+                    let name = db
+                        .get_workspace_by_id(&id)
                         .ok()
                         .flatten()
                         .map(|w| w.name)
                         .unwrap_or_else(|| id.clone());
                     println!("[Daemon] Deleting workspace '{}'...", name);
                     db.delete_workspace_by_id(&id).map_err(|e| e.to_string())?;
-                    
+
                     // Clean up thumbnail
                     let mut thumb_path = database::get_default_db_path();
                     thumb_path.pop();
@@ -190,18 +217,26 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
                         windows,
                     };
                     db.save_workspace(&workspace).map_err(|e| e.to_string())?;
-                    println!("[Daemon] Workspace '{}' updated successfully with {} active window(s).", workspace.name, workspace.windows.len());
+                    println!(
+                        "[Daemon] Workspace '{}' updated successfully with {} active window(s).",
+                        workspace.name,
+                        workspace.windows.len()
+                    );
                     Ok(workspace)
                 })();
                 let _ = responder.send(res);
             }
             BackgroundJob::ToggleFavorite { id, responder } => {
-                let name = db.get_workspace_by_id(&id)
+                let name = db
+                    .get_workspace_by_id(&id)
                     .ok()
                     .flatten()
                     .map(|w| w.name)
                     .unwrap_or_else(|| id.clone());
-                println!("[Daemon] Toggling favorite status for workspace '{}'...", name);
+                println!(
+                    "[Daemon] Toggling favorite status for workspace '{}'...",
+                    name
+                );
                 let res = db.toggle_workspace_favorite(&id).map_err(|e| e.to_string());
                 if let Ok(fav) = &res {
                     println!("[Daemon] Workspace '{}' favorite set to {}.", name, fav);
@@ -212,7 +247,11 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
                 let res = db.get_setting(&key).map_err(|e| e.to_string());
                 let _ = responder.send(res);
             }
-            BackgroundJob::SetSetting { key, value, responder } => {
+            BackgroundJob::SetSetting {
+                key,
+                value,
+                responder,
+            } => {
                 let res = db.set_setting(&key, &value).map_err(|e| e.to_string());
                 let _ = responder.send(res);
             }
@@ -222,44 +261,49 @@ fn worker_thread_loop(rx: std::sync::mpsc::Receiver<BackgroundJob>) {
 
 fn capture_and_save_screenshot(workspace_id: &str) -> Result<(), String> {
     use xcap::Monitor;
-    
+
     let monitors = Monitor::all().map_err(|e| e.to_string())?;
     if monitors.is_empty() {
         return Err("No monitors found".to_string());
     }
-    
+
     // Find virtual desktop bounding box
     let mut min_x = i32::MAX;
     let mut min_y = i32::MAX;
     let mut max_x = i32::MIN;
     let mut max_y = i32::MIN;
-    
+
     for monitor in &monitors {
         let x = monitor.x().unwrap_or(0);
         let y = monitor.y().unwrap_or(0);
         let w = monitor.width().unwrap_or(0) as i32;
         let h = monitor.height().unwrap_or(0) as i32;
-        
-        if x < min_x { min_x = x; }
-        if y < min_y { min_y = y; }
-        if x + w > max_x { max_x = x + w; }
-        if y + h > max_y { max_y = y + h; }
+
+        if x < min_x {
+            min_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if x + w > max_x {
+            max_x = x + w;
+        }
+        if y + h > max_y {
+            max_y = y + h;
+        }
     }
-    
+
     let total_width = (max_x - min_x) as u32;
     let total_height = (max_y - min_y) as u32;
-    
+
     if total_width == 0 || total_height == 0 {
         return Err("Invalid virtual screen dimensions".to_string());
     }
-    
+
     // Create black background canvas
-    let mut stitched = image::ImageBuffer::from_pixel(
-        total_width,
-        total_height,
-        image::Rgba([0, 0, 0, 255]),
-    );
-    
+    let mut stitched =
+        image::ImageBuffer::from_pixel(total_width, total_height, image::Rgba([0, 0, 0, 255]));
+
     // Stitch monitors
     for monitor in &monitors {
         if let Ok(img) = monitor.capture_image() {
@@ -268,22 +312,22 @@ fn capture_and_save_screenshot(workspace_id: &str) -> Result<(), String> {
             image::imageops::replace(&mut stitched, &img, offset_x as i64, offset_y as i64);
         }
     }
-    
+
     // Resolve thumbnails folder
     let mut thumb_path = database::get_default_db_path();
     thumb_path.pop(); // ContextSwitch
     thumb_path.push("thumbnails");
     let _ = std::fs::create_dir_all(&thumb_path);
     thumb_path.push(format!("{}.jpg", workspace_id));
-    
+
     // Convert RgbaImage to RgbImage since Jpeg doesn't support alpha channel
     let rgb_image = image::DynamicImage::ImageRgba8(stitched).into_rgb8();
-    
+
     // Save image
     rgb_image
         .save_with_format(&thumb_path, image::ImageFormat::Jpeg)
         .map_err(|e| e.to_string())?;
-        
+
     Ok(())
 }
 
@@ -318,7 +362,11 @@ pub mod commands {
         let (tx, rx) = channel();
         state
             .job_tx
-            .send(BackgroundJob::Capture { id: workspace_id, name, responder: tx })
+            .send(BackgroundJob::Capture {
+                id: workspace_id,
+                name,
+                responder: tx,
+            })
             .map_err(|e| e.to_string())?;
         rx.recv().map_err(|e| e.to_string())?
     }
@@ -332,7 +380,11 @@ pub mod commands {
         let (tx, rx) = channel();
         state
             .job_tx
-            .send(BackgroundJob::Restore { id, close_others, responder: tx })
+            .send(BackgroundJob::Restore {
+                id,
+                close_others,
+                responder: tx,
+            })
             .map_err(|e| e.to_string())?;
         rx.recv().map_err(|e| e.to_string())?
     }
@@ -389,7 +441,7 @@ pub mod commands {
         path.pop();
         path.push("thumbnails");
         path.push(format!("{}.jpg", id));
-        
+
         if path.exists() {
             #[cfg(target_os = "windows")]
             {
@@ -404,7 +456,7 @@ pub mod commands {
                 let cmd = "open";
                 #[cfg(target_os = "linux")]
                 let cmd = "xdg-open";
-                
+
                 std::process::Command::new(cmd)
                     .arg(&path)
                     .spawn()
@@ -462,15 +514,21 @@ pub mod commands {
         app: tauri::AppHandle,
         state: State<'_, AppState>,
     ) -> Result<(), String> {
-        let new_shortcut = new_hotkey.parse::<tauri_plugin_global_shortcut::Shortcut>()
+        let new_shortcut = new_hotkey
+            .parse::<tauri_plugin_global_shortcut::Shortcut>()
             .map_err(|e| format!("Invalid shortcut: {}", e))?;
 
         let (tx_get, rx_get) = channel();
         state
             .job_tx
-            .send(BackgroundJob::GetSetting { key: "hotkey".to_string(), responder: tx_get })
+            .send(BackgroundJob::GetSetting {
+                key: "hotkey".to_string(),
+                responder: tx_get,
+            })
             .map_err(|e| e.to_string())?;
-        let old_hotkey = rx_get.recv().map_err(|e| e.to_string())??
+        let old_hotkey = rx_get
+            .recv()
+            .map_err(|e| e.to_string())??
             .unwrap_or_else(|| "alt+space".to_string());
 
         use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -478,13 +536,18 @@ pub mod commands {
             let _ = app.global_shortcut().unregister(old_shortcut);
         }
 
-        app.global_shortcut().register(new_shortcut)
+        app.global_shortcut()
+            .register(new_shortcut)
             .map_err(|e| format!("Failed to register hotkey: {}", e))?;
 
         let (tx_set, rx_set) = channel();
         state
             .job_tx
-            .send(BackgroundJob::SetSetting { key: "hotkey".to_string(), value: new_hotkey, responder: tx_set })
+            .send(BackgroundJob::SetSetting {
+                key: "hotkey".to_string(),
+                value: new_hotkey,
+                responder: tx_set,
+            })
             .map_err(|e| e.to_string())?;
         rx_set.recv().map_err(|e| e.to_string())??;
 
@@ -496,11 +559,91 @@ pub mod commands {
         let (tx, rx) = channel();
         state
             .job_tx
-            .send(BackgroundJob::GetSetting { key: "hotkey".to_string(), responder: tx })
+            .send(BackgroundJob::GetSetting {
+                key: "hotkey".to_string(),
+                responder: tx,
+            })
             .map_err(|e| e.to_string())?;
-        let hotkey = rx.recv().map_err(|e| e.to_string())??
+        let hotkey = rx
+            .recv()
+            .map_err(|e| e.to_string())??
             .unwrap_or_else(|| "alt+space".to_string());
         Ok(hotkey)
+    }
+
+    /// Register the installed application itself with Windows. Keeping this in
+    /// Rust avoids Startup-folder batch files whose console owns the app process.
+    #[tauri::command]
+    pub fn set_startup_enabled(enabled: bool) -> Result<(), String> {
+        #[cfg(target_os = "windows")]
+        {
+            use winreg::enums::HKEY_CURRENT_USER;
+            use winreg::RegKey;
+
+            const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+            const STARTUP_APPROVED_KEY: &str =
+                "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
+            const VALUE_NAME: &str = "ContextSwitch";
+            // Older plugin versions used Cargo's package name as the value name.
+            const LEGACY_VALUE_NAME: &str = "context-switch-daemon";
+
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            let (run_key, _) = hkcu.create_subkey(RUN_KEY).map_err(|e| e.to_string())?;
+
+            if enabled {
+                let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+                let command = format!("\"{}\"", exe.display());
+                run_key
+                    .set_value(VALUE_NAME, &command)
+                    .map_err(|e| e.to_string())?;
+                let _ = run_key.delete_value(LEGACY_VALUE_NAME);
+
+                // Remove a prior Task Manager "Disabled" override. With no
+                // override, a newly written Run value is enabled by Windows.
+                if let Ok((approved, _)) = hkcu.create_subkey(STARTUP_APPROVED_KEY) {
+                    let _ = approved.delete_value(VALUE_NAME);
+                    let _ = approved.delete_value(LEGACY_VALUE_NAME);
+                }
+            } else {
+                let _ = run_key.delete_value(VALUE_NAME);
+                let _ = run_key.delete_value(LEGACY_VALUE_NAME);
+                if let Ok((approved, _)) = hkcu.create_subkey(STARTUP_APPROVED_KEY) {
+                    let _ = approved.delete_value(VALUE_NAME);
+                    let _ = approved.delete_value(LEGACY_VALUE_NAME);
+                }
+            }
+
+            Ok(())
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        Err("Native startup registration is currently supported on Windows only".to_string())
+    }
+
+    #[tauri::command]
+    pub fn is_startup_enabled() -> Result<bool, String> {
+        #[cfg(target_os = "windows")]
+        {
+            use winreg::enums::HKEY_CURRENT_USER;
+            use winreg::RegKey;
+
+            const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            let run_key = match hkcu.open_subkey(RUN_KEY) {
+                Ok(key) => key,
+                Err(_) => return Ok(false),
+            };
+            let registered: String = match run_key.get_value("ContextSwitch") {
+                Ok(value) => value,
+                Err(_) => return Ok(false),
+            };
+            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            let expected = format!("\"{}\"", exe.display());
+            Ok(registered.eq_ignore_ascii_case(&expected))
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        Ok(false)
     }
 }
 
@@ -515,7 +658,7 @@ fn add_to_path() {
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
             if let Ok((env_key, _)) = hkcu.create_subkey("Environment") {
                 let current_path: String = env_key.get_value("Path").unwrap_or_default();
-                
+
                 // Avoid double insertion
                 let has_path = current_path.split(';').any(|p| {
                     let cleaned_p = p.trim().trim_end_matches('\\');
@@ -530,12 +673,16 @@ fn add_to_path() {
                         format!("{};{}", current_path, exe_dir_str)
                     };
                     if env_key.set_value("Path", &new_path).is_ok() {
-                        println!("[Daemon] Added ContextSwitch to user PATH environment variable: {}", exe_dir_str);
-                        
+                        println!(
+                            "[Daemon] Added ContextSwitch to user PATH environment variable: {}",
+                            exe_dir_str
+                        );
+
                         // Broadcast environment update to standard explorer shell
                         unsafe {
                             use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                SendMessageTimeoutW, HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG
+                                SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG,
+                                WM_SETTINGCHANGE,
                             };
                             let mut result = 0;
                             let param = "Environment\0".encode_utf16().collect::<Vec<u16>>();
@@ -546,7 +693,7 @@ fn add_to_path() {
                                 param.as_ptr() as _,
                                 SMTO_ABORTIFHUNG,
                                 5000,
-                                &mut result
+                                &mut result,
                             );
                         }
                     }
@@ -578,54 +725,75 @@ pub fn run() {
             commands::open_thumbnail_in_system_viewer,
             commands::toggle_workspace_favorite,
             commands::update_hotkey,
-            commands::get_current_hotkey
+            commands::get_current_hotkey,
+            commands::set_startup_enabled,
+            commands::is_startup_enabled
         ])
-        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, _shortcut, event| {
-            use tauri_plugin_global_shortcut::ShortcutState;
-            if event.state() == ShortcutState::Pressed {
-                // Any registered global shortcut triggers toggle behavior
-                if let Some(window) = app.get_webview_window("main") {
-                    let is_visible = window.is_visible().unwrap_or(false);
-                    if is_visible {
-                        let _ = window.hide();
-                    } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    if event.state() == ShortcutState::Pressed {
+                        // Any registered global shortcut triggers toggle behavior
+                        if let Some(window) = app.get_webview_window("main") {
+                            let is_visible = window.is_visible().unwrap_or(false);
+                            if is_visible {
+                                let _ = window.hide();
+                            } else {
+                                let _ = window.show();
+                                let _ = window.set_focus();
 
-                        // Explicitly force HWND_TOPMOST in Win32 to ensure overlay precedence over borderless games
-                        #[cfg(target_os = "windows")]
-                        {
-                            if let Ok(hwnd) = window.hwnd() {
-                                unsafe {
-                                    use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                        SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW
-                                    };
-                                    let _ = SetWindowPos(
-                                        hwnd.0 as _,
-                                        HWND_TOPMOST,
-                                        0, 0, 0, 0,
-                                        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
-                                    );
+                                // Explicitly force HWND_TOPMOST in Win32 to ensure overlay precedence over borderless games
+                                #[cfg(target_os = "windows")]
+                                {
+                                    if let Ok(hwnd) = window.hwnd() {
+                                        unsafe {
+                                            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                                                SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+                                                SWP_SHOWWINDOW,
+                                            };
+                                            let _ = SetWindowPos(
+                                                hwnd.0 as _,
+                                                HWND_TOPMOST,
+                                                0,
+                                                0,
+                                                0,
+                                                0,
+                                                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+                                            );
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
-        }).build())
-        .plugin(tauri_plugin_window_state::Builder::default()
-            .with_state_flags(tauri_plugin_window_state::StateFlags::all() & !tauri_plugin_window_state::StateFlags::VISIBLE)
-            .build()
+                })
+                .build(),
         )
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        & !tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
+                .build(),
+        )
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             let (tx, rx) = channel();
-            let _ = app.state::<AppState>().job_tx.send(BackgroundJob::GetSetting {
-                key: "hotkey".to_string(),
-                responder: tx,
-            });
-            
-            let hotkey_str = rx.recv()
+            let _ = app
+                .state::<AppState>()
+                .job_tx
+                .send(BackgroundJob::GetSetting {
+                    key: "hotkey".to_string(),
+                    responder: tx,
+                });
+
+            let hotkey_str = rx
+                .recv()
                 .ok()
                 .and_then(|r| r.ok())
                 .flatten()
@@ -636,7 +804,10 @@ pub fn run() {
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             if let Ok(shortcut) = hotkey_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
                 if let Err(e) = app.global_shortcut().register(shortcut) {
-                    eprintln!("Failed to register startup hotkey '{}': {:?}", hotkey_str, e);
+                    eprintln!(
+                        "Failed to register startup hotkey '{}': {:?}",
+                        hotkey_str, e
+                    );
                 }
             }
 
@@ -647,7 +818,7 @@ pub fn run() {
 
             // Create system tray icon with Open and Quit items
             use tauri::menu::{MenuBuilder, MenuItem};
-            use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
+            use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
             let open_i = MenuItem::with_id(app, "open", "Open ContextSwitch", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -661,50 +832,50 @@ pub fn run() {
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| {
-                    match event.id.0.as_str() {
-                        "open" => {
-                            if let Some(window) = app.get_webview_window("main") {
+                .on_menu_event(|app, event| match event.id.0.as_str() {
+                    "open" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } => {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let is_visible = window.is_visible().unwrap_or(false);
+                            if is_visible {
+                                let _ = window.hide();
+                            } else {
                                 let _ = window.show();
                                 let _ = window.set_focus();
                             }
                         }
-                        "quit" => {
-                            app.exit(0);
-                        }
-                        _ => {}
                     }
-                })
-                .on_tray_icon_event(|tray, event| {
-                    match event {
-                        TrayIconEvent::Click {
-                            button: MouseButton::Left,
-                            button_state: MouseButtonState::Up,
-                            ..
-                        } => {
-                            let app = tray.app_handle();
-                            if let Some(window) = app.get_webview_window("main") {
-                                let is_visible = window.is_visible().unwrap_or(false);
-                                if is_visible {
-                                    let _ = window.hide();
-                                } else {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
+                    _ => {}
                 })
                 .build(app)?;
 
             // First-launch detection: show the dashboard on initial install
             let (first_tx, first_rx) = channel();
-            let _ = app.state::<AppState>().job_tx.send(BackgroundJob::GetSetting {
-                key: "launched_before".to_string(),
-                responder: first_tx,
-            });
-            let launched_before = first_rx.recv()
+            let _ = app
+                .state::<AppState>()
+                .job_tx
+                .send(BackgroundJob::GetSetting {
+                    key: "launched_before".to_string(),
+                    responder: first_tx,
+                });
+            let launched_before = first_rx
+                .recv()
                 .ok()
                 .and_then(|r| r.ok())
                 .flatten()
@@ -718,11 +889,14 @@ pub fn run() {
                 }
                 // Mark as launched so future startups stay hidden
                 let (set_tx, _set_rx) = channel();
-                let _ = app.state::<AppState>().job_tx.send(BackgroundJob::SetSetting {
-                    key: "launched_before".to_string(),
-                    value: "true".to_string(),
-                    responder: set_tx,
-                });
+                let _ = app
+                    .state::<AppState>()
+                    .job_tx
+                    .send(BackgroundJob::SetSetting {
+                        key: "launched_before".to_string(),
+                        value: "true".to_string(),
+                        responder: set_tx,
+                    });
                 println!("[Daemon] First launch detected — showing dashboard.");
             }
 
@@ -731,6 +905,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
-
-

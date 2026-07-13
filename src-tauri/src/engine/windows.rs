@@ -1,11 +1,11 @@
-use windows_sys::Win32::Foundation::{BOOL, CloseHandle, FALSE, HWND, LPARAM, RECT, TRUE};
+use windows_sys::Win32::Foundation::{CloseHandle, BOOL, FALSE, HWND, LPARAM, RECT, TRUE};
 use windows_sys::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetClassNameW, GetWindow, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-    GetWindowThreadProcessId, IsWindowVisible, PostMessageW, SetForegroundWindow, SetWindowPos, ShowWindow,
-    GW_OWNER, GWL_EXSTYLE, GWL_STYLE, SWP_SHOWWINDOW, SW_MAXIMIZE, SW_MINIMIZE,
+    GetWindowThreadProcessId, IsWindowVisible, PostMessageW, SetForegroundWindow, SetWindowPos,
+    ShowWindow, GWL_EXSTYLE, GWL_STYLE, GW_OWNER, SWP_SHOWWINDOW, SW_MAXIMIZE, SW_MINIMIZE,
     SW_RESTORE, WM_CLOSE, WS_EX_TOOLWINDOW, WS_MAXIMIZE, WS_MINIMIZE,
 };
 
@@ -38,10 +38,7 @@ impl WindowSpyEngine for WindowsWindowSpy {
     fn capture_windows(&self) -> Result<Vec<WindowState>, String> {
         let active_windows = capture_active_windows_raw(true)?;
         // Map to WindowState vec
-        let states = active_windows
-            .into_iter()
-            .map(|info| info.state)
-            .collect();
+        let states = active_windows.into_iter().map(|info| info.state).collect();
         Ok(states)
     }
 
@@ -54,7 +51,8 @@ impl WindowSpyEngine for WindowsWindowSpy {
         let our_basename = our_path.as_ref().map(|p| get_basename(p).to_lowercase());
 
         // Step 1: Detect which saved apps are missing from the current active windows, and launch them.
-        let mut groups: HashMap<String, (Vec<&WindowState>, Vec<&ActiveWindowInfo>)> = HashMap::new();
+        let mut groups: HashMap<String, (Vec<&WindowState>, Vec<&ActiveWindowInfo>)> =
+            HashMap::new();
 
         // Group saved windows by basename
         for saved_win in &workspace.windows {
@@ -117,9 +115,9 @@ impl WindowSpyEngine for WindowsWindowSpy {
 
                 if let Ok(current_active) = capture_active_windows_raw(false) {
                     missing_basenames.retain(|base| {
-                        !current_active.iter().any(|act| {
-                            get_basename(&act.state.app_name).to_lowercase() == *base
-                        })
+                        !current_active
+                            .iter()
+                            .any(|act| get_basename(&act.state.app_name).to_lowercase() == *base)
                     });
 
                     if missing_basenames.is_empty() {
@@ -135,7 +133,8 @@ impl WindowSpyEngine for WindowsWindowSpy {
         }
 
         // Step 2: Now that all apps have been launched and we have their active windows, match and position them.
-        let mut final_groups: HashMap<String, (Vec<&WindowState>, Vec<&ActiveWindowInfo>)> = HashMap::new();
+        let mut final_groups: HashMap<String, (Vec<&WindowState>, Vec<&ActiveWindowInfo>)> =
+            HashMap::new();
 
         // Group saved windows by basename (same as before)
         for saved_win in &workspace.windows {
@@ -378,12 +377,16 @@ unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> B
     // 7b. Advanced Window Class & System Shell Filtering
     let class_name = get_window_class(hwnd);
     let class_lower = class_name.to_lowercase();
-    
+
     // Skip desktop backgrounds and main taskbar wrappers
-    if class_lower == "progman" || class_lower == "workerw" || class_lower == "shell_traywnd" || class_lower == "shell_secondarytraywnd" {
+    if class_lower == "progman"
+        || class_lower == "workerw"
+        || class_lower == "shell_traywnd"
+        || class_lower == "shell_secondarytraywnd"
+    {
         return TRUE;
     }
-    
+
     // Skip Win10/11 system UI core windows (Start menu overlays, settings flyouts) and Alt+Tab overlays
     if class_lower == "windows.ui.core.corewindow" || class_lower == "multitaskingviewframe" {
         return TRUE;
@@ -459,7 +462,12 @@ unsafe fn get_window_class(hwnd: HWND) -> String {
 
 /// Helper to extract the executable name (e.g. "explorer.exe") for comparisons
 fn get_basename(path: &str) -> &str {
-    path.split('\\').last().unwrap_or(path).split('/').last().unwrap_or(path)
+    path.split('\\')
+        .last()
+        .unwrap_or(path)
+        .split('/')
+        .last()
+        .unwrap_or(path)
 }
 
 fn extract_quoted_value(line: &str) -> Option<String> {
@@ -486,10 +494,10 @@ fn try_launch_steam(app_path: &str) -> Result<bool, String> {
     if let Some(idx) = path_lower.find("\\steamapps\\common\\") {
         let steamapps_path_str = &app_path[..idx + 10]; // length of "\steamapps"
         let steamapps_dir = std::path::Path::new(steamapps_path_str);
-        
+
         let common_and_suffix = &path_lower[idx + 18..]; // length of "\steamapps\common\"
         let game_dir_name = common_and_suffix.split('\\').next().unwrap_or("");
-        
+
         if !game_dir_name.is_empty() {
             if let Ok(entries) = std::fs::read_dir(steamapps_dir) {
                 for entry in entries.flatten() {
@@ -508,7 +516,10 @@ fn try_launch_steam(app_path: &str) -> Result<bool, String> {
                             }
                             if let (Some(id), Some(dir)) = (appid, installdir) {
                                 if dir.to_lowercase() == game_dir_name {
-                                    println!("[Windows Engine] Launching Steam game appid={} via URI", id);
+                                    println!(
+                                        "[Windows Engine] Launching Steam game appid={} via URI",
+                                        id
+                                    );
                                     let launch_uri = format!("steam://rungameid/{}", id);
                                     let _ = std::process::Command::new("cmd")
                                         .args(["/C", "start", "", &launch_uri])
@@ -542,21 +553,29 @@ struct EpicManifest {
 fn try_launch_epic(app_path: &str) -> Result<bool, String> {
     let manifest_dir = "C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests";
     let path_norm = app_path.to_lowercase().replace('/', "\\");
-    
+
     if let Ok(entries) = std::fs::read_dir(manifest_dir) {
         for entry in entries.flatten() {
             if entry.path().extension().map_or(false, |ext| ext == "item") {
                 if let Ok(content) = std::fs::read_to_string(entry.path()) {
                     if let Ok(manifest) = serde_json::from_str::<EpicManifest>(&content) {
-                        let install_norm = manifest.install_location.to_lowercase().replace('/', "\\");
-                        let exec_norm = manifest.launch_executable.to_lowercase().replace('/', "\\");
-                        
+                        let install_norm =
+                            manifest.install_location.to_lowercase().replace('/', "\\");
+                        let exec_norm =
+                            manifest.launch_executable.to_lowercase().replace('/', "\\");
+
                         let mut full_exec_path = std::path::PathBuf::from(&install_norm);
                         full_exec_path.push(&exec_norm);
-                        let full_exec_str = full_exec_path.to_string_lossy().to_string().to_lowercase();
-                        
-                        if path_norm == full_exec_str || (path_norm.starts_with(&install_norm) && path_norm.ends_with(&exec_norm)) {
-                            let launch_uri = if let (Some(ns), Some(id)) = (&manifest.catalog_namespace, &manifest.catalog_item_id) {
+                        let full_exec_str =
+                            full_exec_path.to_string_lossy().to_string().to_lowercase();
+
+                        if path_norm == full_exec_str
+                            || (path_norm.starts_with(&install_norm)
+                                && path_norm.ends_with(&exec_norm))
+                        {
+                            let launch_uri = if let (Some(ns), Some(id)) =
+                                (&manifest.catalog_namespace, &manifest.catalog_item_id)
+                            {
                                 format!(
                                     "com.epicgames.launcher://apps/{}%3A{}%3A{}?action=launch&silent=true",
                                     ns, id, manifest.app_name
@@ -567,7 +586,10 @@ fn try_launch_epic(app_path: &str) -> Result<bool, String> {
                                     manifest.app_name
                                 )
                             };
-                            println!("[Windows Engine] Launching Epic game {} via URI: {}", manifest.app_name, launch_uri);
+                            println!(
+                                "[Windows Engine] Launching Epic game {} via URI: {}",
+                                manifest.app_name, launch_uri
+                            );
                             let _ = std::process::Command::new("cmd")
                                 .args(["/C", "start", "", &launch_uri])
                                 .spawn();
@@ -583,7 +605,7 @@ fn try_launch_epic(app_path: &str) -> Result<bool, String> {
 
 fn try_launch_riot(app_path: &str) -> Result<bool, String> {
     let app_path_norm = app_path.to_lowercase().replace('/', "\\");
-    
+
     let mut client_path = "C:\\Riot Games\\Riot Client\\RiotClientServices.exe".to_string();
     let installs_json_path = "C:\\ProgramData\\Riot Games\\RiotClientInstalls.json";
     if let Ok(content) = std::fs::read_to_string(installs_json_path) {
@@ -593,7 +615,7 @@ fn try_launch_riot(app_path: &str) -> Result<bool, String> {
             }
         }
     }
-    
+
     let metadata_dir = "C:\\ProgramData\\Riot Games\\Metadata";
     if let Ok(entries) = std::fs::read_dir(metadata_dir) {
         for entry in entries.flatten() {
@@ -603,7 +625,7 @@ fn try_launch_riot(app_path: &str) -> Result<bool, String> {
                 if parts.len() >= 2 {
                     let product = parts[0];
                     let patchline = parts[1];
-                    
+
                     let yaml_name = format!("{}.product_settings.yaml", dir_name);
                     let yaml_path = entry.path().join(yaml_name);
                     if yaml_path.exists() {
@@ -704,7 +726,7 @@ fn launch_app(app_path: &str) {
     if let Ok(true) = try_launch_discord(app_path) {
         return;
     }
-    
+
     // Fallback: spawn direct executable
     println!("[Windows Engine] Spawning direct executable: {}", app_path);
     let _ = std::process::Command::new(app_path).spawn();

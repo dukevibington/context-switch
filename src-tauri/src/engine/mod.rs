@@ -26,7 +26,7 @@ pub struct Workspace {
 pub trait WindowSpyEngine {
     /// Captures the state of all active, visible user application windows
     fn capture_windows(&self) -> Result<Vec<WindowState>, String>;
-    
+
     /// Restores coordinates and layout of the saved workspace windows
     fn restore_workspace(&self, workspace: &Workspace, close_others: bool) -> Result<(), String>;
 }
@@ -54,7 +54,11 @@ pub mod dummy {
             Ok(vec![])
         }
 
-        fn restore_workspace(&self, _workspace: &Workspace, _close_others: bool) -> Result<(), String> {
+        fn restore_workspace(
+            &self,
+            _workspace: &Workspace,
+            _close_others: bool,
+        ) -> Result<(), String> {
             Ok(())
         }
     }
